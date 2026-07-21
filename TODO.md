@@ -1,0 +1,53 @@
+# SchoolNest TODO
+
+## Completed Foundation
+
+- Next.js App Router foundation
+- Supabase clients and Auth wiring
+- Register school, login, logout, and role redirects
+- Multi-tenant schema foundation
+- Foundation reconciliation migration for RLS and helper functions
+- Roles, feature flags, and subscription plans
+- Protected dashboard shell and role-specific layouts
+- Step 3 school setup and core records
+- Step 4 manual fees and finance
+- Stabilization pass for sessions, terms, class editing, fee category visibility, and finance setup continuity
+- Finance simplification and guided setup UX: fee items are labels only, compulsory class fees carry actual amounts, optional fees are billed only when assigned as student add-ons
+
+## Before Step 5
+
+Run the full smoke checklists in `QA_STABILIZATION_REPORT.md` and `UX_STABILIZATION_REPORT.md` against the target Supabase project. For existing Step 4 databases, run `database/migrations/step-4-8-finance-optional-fees.sql` before testing Student Add-ons. Fix any remaining registration, setup, core-record, finance, toast, refresh, or edit-mode regressions before adding new modules.
+
+## Step 5: Attendance & Communication
+
+Next step remains Attendance & Communication, but only after the stabilization checklist passes:
+
+- Daily student attendance
+- Staff attendance scaffold
+- Class attendance register
+- Absentee list
+- Parent absence visibility
+- Announcements
+- Notice board
+- Email alert scaffolding
+- SMS/WhatsApp placeholders for premium later
+
+## Later Modules
+
+- Results and report cards
+- CBT
+- Payroll
+- Inventory
+- Library
+- Transport
+- Hostel
+- Clinic
+- Inter-house sports
+- Clubs and societies
+- Bulk Excel/CSV imports with validation
+- Paystack online payments as a premium finance step
+
+
+
+
+
