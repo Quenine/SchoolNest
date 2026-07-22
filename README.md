@@ -107,3 +107,7 @@ Set SCHOOLNEST_ENFORCE_PLAN_LIMITS=false locally and in Vercel during developmen
 ## Import Centre
 
 After applying Step 4.9, school administrators can use `/dashboard/school-admin/imports`. See `DATA_IMPORTS.md` for templates, limits, matching, duplicate behavior, security, and acceptance testing.
+
+## Step 5 — Attendance & Communication
+
+Daily Attendance and in-app Announcements are available for school administrators, explicitly assigned teachers, and linked parents. Apply `database/migrations/step-5-1-attendance-and-communication.sql` after the Step 2 foundation and current Step 4 migrations. See `ATTENDANCE_MODEL.md`, `COMMUNICATION_MODEL.md`, and `STEP_5_IMPLEMENTATION_REPORT.md`. External message delivery is not part of this release.

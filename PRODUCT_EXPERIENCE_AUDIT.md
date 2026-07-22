@@ -49,3 +49,7 @@ Obsolete bulk-import placeholder copy was removed from Students, Staff, and Pare
 Student Add-ons now uses URL-synchronized cascading Session, Term, Class, Arm, and Student selection. Terms belong to the session; arms belong to the class; and the local searchable student list contains only active students in the selected class/arm. No student is selected by default. Server rendering revalidates every ID against tenant-scoped rows before totals, fees, or assignments are shown.
 
 Manual acceptance remains required at 360px, 390px, and desktop widths: verify stacked controls, 44px actions, keyboard student selection, pending state, empty states, URL back/forward behavior, fee reset after filter changes, import links, and assignment/cancel flow. Overall stabilization is not marked complete until this passes.
+
+## Step 5 product experience
+
+Attendance prioritizes today, explicit teacher assignments, historical roster snapshots and clear draft/submitted/locked states. Parent views are linked-child only. Announcements are unread-first, pinned-aware and in-app only, with scheduled visibility evaluated at query time. No SMS/email success language exists. Automated checks pass before manual two-school, role, transition and responsive acceptance; overall stabilization remains pending until that manual pass.

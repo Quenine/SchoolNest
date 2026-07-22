@@ -49,3 +49,7 @@ Manual payment and receipt records are tenant-scoped and role-scoped. Online pay
 Import jobs must derive school identity from authenticated context, require school-admin authorization, retain RLS, reject non-CSV/oversized input and unexpected columns, and omit secrets and medical data from audit metadata.
 
 The Import Centre permits only authenticated setup administrators, derives tenant identity server-side, revalidates the uploaded file at confirmation, and relies on RLS for import history and errors. Limits are 2 MB and 2,000 rows. Unexpected columns and cross-school references are rejected.
+
+## Step 5 security boundary
+
+Teacher attendance and class-announcement authority derives only from active tenant-scoped class-staff assignments linked to the authenticated staff profile. Parent attendance and class-announcement visibility derives only from linked children. Attendance batch writes use a security-definer RPC with a fixed search path, `auth.uid()` enforcement, tenant/assignment validation, enrollment validation, future-date rejection and locked-state protection. Announcement visibility resolves effective time, expiry and audience under RLS. No service-role secret is used by browser code and no external delivery is claimed.

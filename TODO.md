@@ -71,3 +71,9 @@ The next major product step remains Step 5 — Attendance & Communication. Apply
 - [ ] Test Student Add-ons at 360px, 390px, and desktop widths.
 - [ ] Confirm cascading resets, keyboard student search, URL navigation, empty/pending states, optional-fee reset, assignment, and cancellation.
 - [ ] Mark overall stabilization complete only after these manual checks pass.
+
+## After Step 5
+
+- [ ] Complete the documented two-school manual acceptance suite for attendance and announcements.
+- [ ] Validate 360px, 390px, 768px and desktop experiences with real assigned teachers and linked parents.
+- [ ] Next planned product step: Results & grading discovery and design. Do not implement until Step 5 manual acceptance passes.
