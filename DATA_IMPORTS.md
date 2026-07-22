@@ -34,3 +34,7 @@ Failed-row exports prepend a single quote to cells beginning with `=`, `+`, `-`,
 Apply `database/migrations/step-4-9-data-imports.sql` before using the Import Centre. Fresh databases receive the same tables and policies from `database/schema.sql`.
 
 If Step 4.9 was already attempted before its RLS helper-name correction, also apply database/migrations/step-4-10-import-centre-completion.sql. It safely recreates only the four import policies.
+
+## Module page entry points
+
+The shared `ModuleImportActions` component constructs template, import, and history routes for Students, Staff, Guardians, Student-Guardian Links, Subjects, Fee Items, Class Fees, and Student Add-ons. Guided workflows remain primary: Fee Setup places compact actions inside the relevant sections, while Student Add-ons keeps manual assignment prominent. Module-specific accessible labels replace obsolete placeholder copy.

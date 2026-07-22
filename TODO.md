@@ -64,3 +64,10 @@ Next major product step remains: Step 5 — Attendance & Communication (after impo
 Functional server-revalidated CSV imports now cover Students, Staff, Parents/Guardians, Student-Guardian Links, Subjects, Fee Items, Class Fees, and Student Optional Fee Add-ons. Every module has a template, upload, preview, validation summary, explicit confirmation, persistence, duplicate skipping, history, error CSV, audit event, and deterministic tests.
 
 The next major product step remains Step 5 â€” Attendance & Communication. Apply Step 4.9 and complete the authenticated acceptance checklist before beginning Step 5 implementation.
+
+## Manual acceptance pending: import entry points and Student Add-ons
+
+- [ ] Test all module template/import/history links with an authorized school administrator.
+- [ ] Test Student Add-ons at 360px, 390px, and desktop widths.
+- [ ] Confirm cascading resets, keyboard student search, URL navigation, empty/pending states, optional-fee reset, assignment, and cancellation.
+- [ ] Mark overall stabilization complete only after these manual checks pass.

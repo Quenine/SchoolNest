@@ -41,3 +41,11 @@ Manual acceptance checklist:
 - Download error CSV and open it in spreadsheet software to confirm formula safety.
 - Verify a second tenant cannot resolve or download another school’s records/jobs.
 - Test required markers, date boundaries, dialogs, forms, tables, and toasts at 360, 390, 768, and 1024+ pixels.
+
+## Import entry points and Student Add-ons stabilization (2026-07-22)
+
+Obsolete bulk-import placeholder copy was removed from Students, Staff, and Parents & Guardians. Students, Staff, Guardians, Student-Guardian Links, Subjects, Fee Items, Class Fees, and Student Add-ons now use the shared Import Centre entry-point component.
+
+Student Add-ons now uses URL-synchronized cascading Session, Term, Class, Arm, and Student selection. Terms belong to the session; arms belong to the class; and the local searchable student list contains only active students in the selected class/arm. No student is selected by default. Server rendering revalidates every ID against tenant-scoped rows before totals, fees, or assignments are shown.
+
+Manual acceptance remains required at 360px, 390px, and desktop widths: verify stacked controls, 44px actions, keyboard student selection, pending state, empty states, URL back/forward behavior, fee reset after filter changes, import links, and assignment/cancel flow. Overall stabilization is not marked complete until this passes.
