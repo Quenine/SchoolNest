@@ -1,4 +1,4 @@
-"use server";
+﻿"use server";
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -6,6 +6,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { calculateInvoiceStatus, calculateInvoiceTotals, generateInvoiceNumber, generatePaymentReference, generateReceiptNumber, normalizeAmountInput } from "@/lib/finance/helpers";
 import { assertCanManageFinance, getFinanceCounts, getSchoolContext } from "@/lib/school-context";
 import { normalizeCode, normalizePhoneNumber } from "@/lib/school-records";
+import { isFutureInSchoolTimezone } from "@/lib/dates";
 import { normalizeFormData } from "@/lib/validation/common";
 import { classFeeStructureSchema, classInvoiceGenerationSchema, feeCategorySchema, feeItemSchema, financeAuditNoteSchema, invoiceGenerationSchema, invoiceStatusSchema, manualPaymentSchema, paymentStatusSchema, receiptNoteSchema, studentFeeAdjustmentSchema, studentOptionalFeeSchema } from "@/lib/validation/finance";
 import type { ActionState } from "@/app/dashboard/school-admin/setup/actions";
@@ -179,7 +180,7 @@ export async function assignStudentOptionalFee(_prev: ActionState, formData: For
   const parsed = parseForm(studentOptionalFeeSchema, formData); if (parsed.error) return parsed.error;
   const context = await financeContext();
   const [{ data: fee }, { data: student }] = await Promise.all([
-    context.supabase.from("class_fee_structures").select("id, amount, class_id, arm_id, is_required").eq("school_id", context.schoolId).eq("id", parsed.data.class_fee_structure_id).single(),
+    context.supabase.from("class_fee_structures").select("id, amount, class_id, arm_id, is_required, academic_session_id, term_id").eq("school_id", context.schoolId).eq("id", parsed.data.class_fee_structure_id).single(),
     context.supabase.from("students").select("id, current_class_id, current_arm_id").eq("school_id", context.schoolId).eq("id", parsed.data.student_id).single(),
   ]);
   if (!fee) return fail("Optional fee not found for this school.");
@@ -187,6 +188,7 @@ export async function assignStudentOptionalFee(_prev: ActionState, formData: For
   if (!student) return fail("Student not found for this school.");
   if (student.current_class_id !== fee.class_id) return fail("This optional fee is not for the student's current class.");
   if (fee.arm_id && fee.arm_id !== student.current_arm_id) return fail("This optional fee is not for the student's current arm.");
+  if (fee.academic_session_id !== parsed.data.academic_session_id || (fee.term_id ?? null) !== (parsed.data.term_id ?? null)) return fail("This optional fee is not configured for the selected session and term.");
 
   let existingQuery = context.supabase.from("student_optional_fees").select("id").eq("school_id", context.schoolId).eq("student_id", parsed.data.student_id).eq("academic_session_id", parsed.data.academic_session_id).eq("class_fee_structure_id", parsed.data.class_fee_structure_id);
   existingQuery = parsed.data.term_id ? existingQuery.eq("term_id", parsed.data.term_id) : existingQuery.is("term_id", null);
@@ -332,7 +334,16 @@ export async function recomputeInvoiceTotals(_prev: ActionState, formData: FormD
 
 export async function recordManualPayment(_prev: ActionState, formData: FormData) {
   const parsed = parseForm(manualPaymentSchema, formData); if (parsed.error) return parsed.error;
-  const context = await financeContext(); const school = await schoolCode(context); const paymentCount = await nextCount(context, "payments");
+  if (parsed.data.paid_at && isFutureInSchoolTimezone(parsed.data.paid_at)) return fail("Paid at cannot be in the future.", { paid_at: ["Choose the current time or an earlier time."] });
+  if (!parsed.data.invoice_id && !parsed.data.transaction_note) return fail("Enter a reason for an unallocated payment.", { transaction_note: ["A reason is required."] });
+  const context = await financeContext();
+  if (parsed.data.invoice_id) {
+    const { data: invoice } = await context.supabase.from("invoices").select("id, student_id, balance_amount, status").eq("school_id", context.schoolId).eq("id", parsed.data.invoice_id).single();
+    if (!invoice || invoice.student_id !== parsed.data.student_id) return fail("The selected invoice does not belong to this student.");
+    if (["paid", "cancelled", "void"].includes(invoice.status) || Number(invoice.balance_amount) <= 0) return fail("This invoice cannot accept a payment.");
+    if (parsed.data.amount > Number(invoice.balance_amount)) return fail("Payment cannot exceed the invoice outstanding balance.");
+  }
+  const school = await schoolCode(context); const paymentCount = await nextCount(context, "payments");
   const { data: payment, error } = await context.supabase.from("payments").insert({ ...parsed.data, school_id: context.schoolId, payment_reference: generatePaymentReference(school, paymentCount), payer_phone: normalizePhoneNumber(parsed.data.payer_phone), received_by_user_profile_id: context.profileId }).select("id, invoice_id, amount").single();
   if (error || !payment) return fail(error?.message ?? "Payment could not be recorded.");
   if (payment.invoice_id) {
@@ -371,6 +382,8 @@ export async function addFinanceAuditNote(_prev: ActionState, formData: FormData
   const context = await financeContext(); const { data, error } = await context.supabase.from("finance_audit_notes").insert({ ...parsed.data, school_id: context.schoolId, created_by_user_profile_id: context.profileId }).select("id").single();
   if (error) return fail(error.message); await audit("finance.note_added", "finance_audit_notes", data.id, { note_type: parsed.data.note_type }); refreshFinance(); return ok("Finance note added.");
 }
+
+
 
 
 

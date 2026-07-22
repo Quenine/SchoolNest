@@ -44,3 +44,8 @@ Student, guardian, and parent finance data is private. Parents may only read rec
 ## Finance Data Protection
 
 Manual payment and receipt records are tenant-scoped and role-scoped. Online payment integration is not implemented yet; when added, provider secrets must remain server-only and payment callbacks must be verified.
+
+## CSV imports
+Import jobs must derive school identity from authenticated context, require school-admin authorization, retain RLS, reject non-CSV/oversized input and unexpected columns, and omit secrets and medical data from audit metadata.
+
+The Import Centre permits only authenticated setup administrators, derives tenant identity server-side, revalidates the uploaded file at confirmation, and relies on RLS for import history and errors. Limits are 2 MB and 2,000 rows. Unexpected columns and cross-school references are rejected.

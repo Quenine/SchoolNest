@@ -1,4 +1,4 @@
--- SchoolNest initial PostgreSQL schema for Supabase.
+﻿-- SchoolNest initial PostgreSQL schema for Supabase.
 -- All tenant-owned queries MUST include school_id, even when RLS is enabled.
 
 create extension if not exists "pgcrypto";
@@ -633,37 +633,37 @@ alter table public.student_enrollments enable row level security;
 DO $schoolnest$
 begin
   create policy school_profile_settings_read on public.school_profile_settings for select to authenticated using (public.is_platform_super_admin() or public.is_school_member(school_id));
-  create policy school_profile_settings_manage on public.school_profile_settings for all to authenticated using (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin'])) with check (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']));
+  create policy school_profile_settings_manage on public.school_profile_settings for all to authenticated using (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']::text[])) with check (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']::text[]));
 
   create policy school_sections_read on public.school_sections for select to authenticated using (public.is_platform_super_admin() or public.is_school_member(school_id));
-  create policy school_sections_manage on public.school_sections for all to authenticated using (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin'])) with check (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']));
+  create policy school_sections_manage on public.school_sections for all to authenticated using (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']::text[])) with check (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']::text[]));
 
   create policy classes_read on public.classes for select to authenticated using (public.is_platform_super_admin() or public.is_school_member(school_id));
-  create policy classes_manage on public.classes for all to authenticated using (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin'])) with check (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']));
+  create policy classes_manage on public.classes for all to authenticated using (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']::text[])) with check (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']::text[]));
 
   create policy class_arms_read on public.class_arms for select to authenticated using (public.is_platform_super_admin() or public.is_school_member(school_id));
-  create policy class_arms_manage on public.class_arms for all to authenticated using (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin'])) with check (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']));
+  create policy class_arms_manage on public.class_arms for all to authenticated using (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']::text[])) with check (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']::text[]));
 
   create policy subjects_read on public.subjects for select to authenticated using (public.is_platform_super_admin() or public.is_school_member(school_id));
-  create policy subjects_manage on public.subjects for all to authenticated using (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin'])) with check (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']));
+  create policy subjects_manage on public.subjects for all to authenticated using (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']::text[])) with check (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']::text[]));
 
   create policy class_subjects_read on public.class_subjects for select to authenticated using (public.is_platform_super_admin() or public.is_school_member(school_id));
-  create policy class_subjects_manage on public.class_subjects for all to authenticated using (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin'])) with check (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']));
+  create policy class_subjects_manage on public.class_subjects for all to authenticated using (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']::text[])) with check (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']::text[]));
 
   create policy staff_profiles_read on public.staff_profiles for select to authenticated using (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']));
-  create policy staff_profiles_manage on public.staff_profiles for all to authenticated using (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin'])) with check (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']));
+  create policy staff_profiles_manage on public.staff_profiles for all to authenticated using (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']::text[])) with check (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']::text[]));
 
   create policy parent_guardians_read on public.parent_guardians for select to authenticated using (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin','bursar','teacher','class_teacher']) or user_profile_id = auth.uid());
-  create policy parent_guardians_manage on public.parent_guardians for all to authenticated using (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin'])) with check (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']));
+  create policy parent_guardians_manage on public.parent_guardians for all to authenticated using (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']::text[])) with check (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']::text[]));
 
   create policy students_read on public.students for select to authenticated using (public.can_read_student(school_id, id));
-  create policy students_manage on public.students for all to authenticated using (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin'])) with check (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']));
+  create policy students_manage on public.students for all to authenticated using (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']::text[])) with check (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']::text[]));
 
   create policy student_guardians_read on public.student_guardians for select to authenticated using (public.is_platform_super_admin() or public.can_read_student(school_id, student_id));
-  create policy student_guardians_manage on public.student_guardians for all to authenticated using (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin'])) with check (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']));
+  create policy student_guardians_manage on public.student_guardians for all to authenticated using (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']::text[])) with check (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']::text[]));
 
   create policy student_enrollments_read on public.student_enrollments for select to authenticated using (public.is_platform_super_admin() or public.can_read_student(school_id, student_id));
-  create policy student_enrollments_manage on public.student_enrollments for all to authenticated using (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin'])) with check (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']));
+  create policy student_enrollments_manage on public.student_enrollments for all to authenticated using (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']::text[])) with check (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']::text[]));
 exception when duplicate_object then null;
 END $schoolnest$;
 
@@ -1068,6 +1068,36 @@ END $schoolnest$;
 
 
 
+
+
+
+
+-- Import history is defined in database/migrations/step-4-9-data-imports.sql.
+-- Step 4.9: tenant-scoped CSV import history (additive and idempotent)
+create table if not exists public.data_import_jobs (
+ id uuid primary key default gen_random_uuid(), school_id uuid not null references public.schools(id) on delete cascade,
+ module text not null, original_filename text not null, status text not null check (status in ('validating','ready','processing','completed','completed_with_errors','failed')),
+ total_rows integer not null default 0, valid_rows integer not null default 0, imported_rows integer not null default 0, skipped_rows integer not null default 0, failed_rows integer not null default 0,
+ created_by_user_profile_id uuid references public.users_profile(id) on delete set null, started_at timestamptz not null default now(), completed_at timestamptz, created_at timestamptz not null default now(), metadata jsonb not null default '{}'::jsonb,
+ unique (school_id, id)
+);
+create table if not exists public.data_import_errors (
+ id uuid primary key default gen_random_uuid(), school_id uuid not null references public.schools(id) on delete cascade,
+ import_job_id uuid not null, row_number integer not null, field_name text, error_code text, error_message text not null, row_data jsonb, created_at timestamptz not null default now(),
+ foreign key (school_id, import_job_id) references public.data_import_jobs(school_id, id) on delete cascade
+);
+create index if not exists data_import_jobs_school_created_idx on public.data_import_jobs(school_id, created_at desc);
+create index if not exists data_import_errors_job_idx on public.data_import_errors(school_id, import_job_id);
+alter table public.data_import_jobs enable row level security;
+alter table public.data_import_errors enable row level security;
+drop policy if exists data_import_jobs_tenant_select on public.data_import_jobs;
+create policy data_import_jobs_tenant_select on public.data_import_jobs for select to authenticated using (public.is_platform_super_admin() or public.is_school_member(school_id));
+drop policy if exists data_import_jobs_tenant_write on public.data_import_jobs;
+create policy data_import_jobs_tenant_write on public.data_import_jobs for all to authenticated using (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']::text[])) with check (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']::text[]));
+drop policy if exists data_import_errors_tenant_select on public.data_import_errors;
+create policy data_import_errors_tenant_select on public.data_import_errors for select to authenticated using (public.is_platform_super_admin() or public.is_school_member(school_id));
+drop policy if exists data_import_errors_tenant_write on public.data_import_errors;
+create policy data_import_errors_tenant_write on public.data_import_errors for all to authenticated using (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']::text[])) with check (public.is_platform_super_admin() or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']::text[]));
 
 
 

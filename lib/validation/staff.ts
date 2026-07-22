@@ -1,5 +1,6 @@
-import { z } from "zod";
+﻿import { z } from "zod";
 import { optionalDate, optionalEmail, optionalPhone, optionalText, optionalUuid } from "@/lib/validation/common";
+import { isFutureInSchoolTimezone } from "@/lib/dates";
 
 export const staffProfileSchema = z.object({
   id: optionalUuid,
@@ -23,4 +24,6 @@ export const staffProfileSchema = z.object({
   emergency_contact_name: optionalText,
   emergency_contact_phone: optionalPhone,
   photo_url: optionalText,
-});
+}).refine((value) => !value.date_of_birth || !isFutureInSchoolTimezone(value.date_of_birth), { path: ["date_of_birth"], message: "Date of birth cannot be in the future" })
+.refine((value) => !value.employment_date || !isFutureInSchoolTimezone(value.employment_date), { path: ["employment_date"], message: "Employment date cannot be in the future" });
+

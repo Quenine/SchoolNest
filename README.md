@@ -100,3 +100,10 @@ npm test -- --run --pool=vmThreads --maxWorkers=1 --minWorkers=1
 
 
 
+
+## Development plan limits
+Set SCHOOLNEST_ENFORCE_PLAN_LIMITS=false locally and in Vercel during development. Production launch must explicitly set it to 	rue only after commercial rules are finalized. Authentication, authorization, RLS, tenant isolation, and paid integrations are unaffected.
+
+## Import Centre
+
+After applying Step 4.9, school administrators can use `/dashboard/school-admin/imports`. See `DATA_IMPORTS.md` for templates, limits, matching, duplicate behavior, security, and acceptance testing.

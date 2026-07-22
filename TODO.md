@@ -51,3 +51,16 @@ Next step remains Attendance & Communication, but only after the stabilization c
 
 
 
+
+## Step 4.9 stabilization status
+- Plan limits can be bypassed during development with `SCHOOLNEST_ENFORCE_PLAN_LIMITS=false`.
+- Import history schema and security policy are ready; CSV processing UI remains to be completed before release.
+- Manual payment filtering/date checks and student add-on auto-fill are implemented.
+
+Next major product step remains: Step 5 � Attendance & Communication (after import processing completion).
+
+## Completed stabilization continuation — July 2026
+
+Functional server-revalidated CSV imports now cover Students, Staff, Parents/Guardians, Student-Guardian Links, Subjects, Fee Items, Class Fees, and Student Optional Fee Add-ons. Every module has a template, upload, preview, validation summary, explicit confirmation, persistence, duplicate skipping, history, error CSV, audit event, and deterministic tests.
+
+The next major product step remains Step 5 — Attendance & Communication. Apply Step 4.9 and complete the authenticated acceptance checklist before beginning Step 5 implementation.

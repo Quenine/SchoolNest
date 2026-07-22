@@ -1,8 +1,8 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Building2, GraduationCap, Home, Settings, ShieldCheck, UserRoundCog, UsersRound, WalletCards } from "lucide-react";
+import { BookOpen, Building2, GraduationCap, Home, Settings, ShieldCheck, UserRoundCog, UsersRound, WalletCards, Upload } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { cn } from "@/lib/utils";
 
@@ -14,6 +14,7 @@ const items = [
   { href: "/dashboard/school-admin/staff", label: "Staff", icon: UserRoundCog },
   { href: "/dashboard/school-admin/students", label: "Students", icon: UsersRound },
   { href: "/dashboard/school-admin/parents", label: "Parents/Guardians", icon: UsersRound },
+  { href: "/dashboard/school-admin/imports", label: "Data Imports", icon: Upload },
   { href: "/dashboard/school-admin/finance", label: "Finance", icon: WalletCards },
   { href: "/dashboard/school-admin/finance/fees", label: "Fee Setup", icon: WalletCards },
   { href: "/dashboard/school-admin/finance/student-addons", label: "Student Add-ons", icon: WalletCards },
@@ -52,6 +53,7 @@ export function Sidebar() {
     </aside>
   );
 }
+
 
 
 

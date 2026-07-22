@@ -1,0 +1,6 @@
+﻿"use client";
+import { useRef } from "react";
+import type { ActionState } from "@/app/dashboard/school-admin/setup/actions";
+import { ActionForm } from "@/components/forms/action-form";
+import { Button } from "@/components/ui/button";
+export function ConfirmActionForm({action,triggerLabel,actionLabel,description,fields,pendingLabel="Working..."}:{action:(state:ActionState,data:FormData)=>Promise<ActionState>;triggerLabel:string;actionLabel:string;description:string;fields:Record<string,string>;pendingLabel?:string}){const ref=useRef<HTMLDialogElement>(null);return <><Button type="button" variant="outline" size="sm" onClick={()=>ref.current?.showModal()}>{triggerLabel}</Button><dialog ref={ref} className="m-auto w-[calc(100%-2rem)] max-w-md rounded-2xl p-0 backdrop:bg-black/40"><div className="p-5"><h2 className="text-lg font-bold">Confirm action</h2><p className="mt-2 text-sm text-muted-foreground">{description}</p><div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={()=>ref.current?.close()}>Cancel</Button><ActionForm action={action} submitLabel={actionLabel} pendingLabel={pendingLabel} className="space-y-2">{Object.entries(fields).map(([name,value])=><input key={name} type="hidden" name={name} value={value}/>)}</ActionForm></div></div></dialog></>}

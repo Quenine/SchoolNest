@@ -1,6 +1,7 @@
 ﻿import { z } from "zod";
 import { formBool, optionalDate, optionalPhone, optionalText, optionalUuid } from "@/lib/validation/common";
 import { normalizeAmountInput } from "@/lib/finance/helpers";
+import { isFutureInSchoolTimezone } from "@/lib/dates";
 
 const code = z.string().trim().min(1).max(50).transform((value) => value.toUpperCase().replace(/[^A-Z0-9]+/g, "_"));
 const money = z.preprocess((value) => normalizeAmountInput(value as string), z.number().min(0));
@@ -97,6 +98,9 @@ export const manualPaymentSchema = z.object({
   bank_name: optionalText,
   transaction_note: optionalText,
   evidence_url: optionalText,
+}).superRefine((value, ctx) => {
+  if (!value.invoice_id && !value.transaction_note) ctx.addIssue({ code: "custom", path: ["transaction_note"], message: "Enter a reason for an unallocated payment" });
+  if (value.paid_at && isFutureInSchoolTimezone(value.paid_at)) ctx.addIssue({ code: "custom", path: ["paid_at"], message: "Paid at cannot be in the future" });
 });
 
 export const paymentStatusSchema = z.object({ id: z.string().uuid() });
@@ -113,4 +117,6 @@ export const financeAuditNoteSchema = z.object({
   note: z.string().trim().min(3, "Enter a useful note"),
   note_type: z.enum(["general", "correction", "follow_up", "dispute", "approval"]),
 });
+
+
 

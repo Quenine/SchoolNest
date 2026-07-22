@@ -5,6 +5,7 @@ import { z } from "zod";
 import { recordAuditEvent } from "@/lib/audit";
 import { assertCanManageSetup, ensureBelowLimit, getSchoolContext, getSchoolCounts } from "@/lib/school-context";
 import { normalizeCode, normalizePhoneNumber } from "@/lib/school-records";
+import { isPlanLimitEnforcementEnabled } from "@/lib/plan-limits";
 import { normalizeFormData } from "@/lib/validation/common";
 import { academicSessionSchema, academicTermSchema, classArmSchema, classSubjectSchema, schoolClassSchema, schoolProfileSettingsSchema, schoolSectionSchema, subjectSchema } from "@/lib/validation/school-setup";
 import { staffProfileSchema } from "@/lib/validation/staff";
@@ -77,6 +78,13 @@ async function markOnlyCurrentSession(context: Awaited<ReturnType<typeof getScho
   await context.supabase.from("academic_sessions").update({ is_current: false }).eq("school_id", context.schoolId).neq("id", sessionId);
 }
 
+async function validateTermWithinSession(context: Awaited<ReturnType<typeof getSchoolContext>>, sessionId: string, startsOn: string, endsOn: string) {
+  const { data } = await context.supabase.from("academic_sessions").select("starts_on, ends_on").eq("school_id", context.schoolId).eq("id", sessionId).single();
+  if (!data) return "Academic session was not found.";
+  if (startsOn < data.starts_on || endsOn > data.ends_on) return "Term dates must fall within the selected academic session.";
+  return null;
+}
+
 async function markOnlyCurrentTerm(context: Awaited<ReturnType<typeof getSchoolContext>>, termId: string) {
   await context.supabase.from("terms").update({ is_current: false }).eq("school_id", context.schoolId).neq("id", termId);
 }
@@ -125,6 +133,8 @@ export async function updateAcademicTerm(_prev: ActionState, formData: FormData)
   const context = await mutableContext();
   const { id, ...values } = parsed.data;
   if (!id) return fail("Missing record id.");
+  const dateError = await validateTermWithinSession(context, values.academic_session_id, values.starts_on, values.ends_on);
+  if (dateError) return fail(dateError, { starts_on: [dateError], ends_on: [dateError] });
   const { error } = await context.supabase.from("terms").update(values).eq("id", id).eq("school_id", context.schoolId);
   if (error) return fail(error.message);
   if (values.is_current) await markOnlyCurrentTerm(context, id);
@@ -273,7 +283,7 @@ export async function createDefaultNigerianStructure(_prev: ActionState, _formDa
   void _formData;
   const context = await mutableContext();
   const counts = await getSchoolCounts(context.supabase, context.schoolId);
-  const remainingClassSlots = context.limits.maxClasses === null ? Number.POSITIVE_INFINITY : Math.max(context.limits.maxClasses - counts.classes, 0);
+  const remainingClassSlots = !isPlanLimitEnforcementEnabled() || context.limits.maxClasses === null ? Number.POSITIVE_INFINITY : Math.max(context.limits.maxClasses - counts.classes, 0);
   if (remainingClassSlots === 0) return fail("Class limit reached for your current plan. Upgrade to add the full default structure.");
 
   const sections = [
@@ -430,6 +440,10 @@ export async function unlinkStudentGuardian(_prev: ActionState, formData: FormDa
   revalidatePath("/dashboard/school-admin/parents");
   return ok("Guardian unlinked from student.");
 }
+
+
+
+
 
 
 

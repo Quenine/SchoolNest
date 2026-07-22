@@ -91,3 +91,5 @@ Student-specific discounts, waivers, corrections, or surcharges are applied afte
 ## Backward Compatibility
 
 The legacy `fee_items.amount` column remains in the database for compatibility with earlier Step 4 schemas. It is deprecated in the app model and should not be used for UI or business logic.
+
+Manual payments are invoice-scoped by default. The server rejects cross-student, closed-invoice, over-balance, and future-dated payments. Unallocated payments require an explicit reason. Optional student add-ons inherit the applicable class fee amount unless an approved custom amount is recorded.

@@ -1,4 +1,5 @@
 ﻿import { getTenantSchoolContext } from "@/lib/tenant/get-school-context";
+import { assertWithinPlanLimit } from "@/lib/plan-limits";
 
 export type SchoolContext = Awaited<ReturnType<typeof getTenantSchoolContext>>;
 
@@ -64,7 +65,9 @@ export async function getFinanceCounts(supabase: SchoolContext["supabase"], scho
 }
 
 export function ensureBelowLimit(current: number, limit: number | null, label: string) {
-  if (limit !== null && current >= limit) {
-    throw new Error(`${label} limit reached for your current plan. Upgrade to add more.`);
-  }
+  assertWithinPlanLimit(current, limit, label);
 }
+
+
+
+

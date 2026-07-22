@@ -87,3 +87,12 @@ Run the UX smoke checklist above against the target Supabase project. Step 5 Att
 
 
 
+
+## Focused product-experience pass
+Implemented centralized development quota configuration, accessible required-label primitives, timezone date helpers, dependent manual-payment invoices, and optional-fee amount auto-fill. Import history schema and standards were established. Full CSV preview/processing remains a release blocker.
+
+## Import Centre completion
+
+The eight-module Import Centre is implemented with server-side revalidation, tenant-derived school identity, RLS-backed history, formula-safe error CSV files, responsive previews, and create-only duplicate behavior. Step 4.9 RLS helper names were corrected before deployment to match the established schema functions.
+
+Date rollout now covers student birth/admission dates, staff birth/employment validation (including CSV), payment timestamps, session/term ranges, and term containment within sessions. Shared native confirmation dialogs protect staff deactivation and key finance cancellation, removal, reversal, and void actions.

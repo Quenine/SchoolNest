@@ -11,13 +11,13 @@ export function RegisterSchoolForm() {
   const [state, formAction, pending] = useActionState(registerSchool, initialState);
 
   return (
-    <form className="space-y-4" action={formAction}>
+    <form className="space-y-4" action={formAction}><p className="text-xs text-muted-foreground">Fields marked * are required.</p>
       <div className="grid gap-4 md:grid-cols-2">
         <Field name="schoolName" label="School name" placeholder="e.g. Greenfield Academy" error={state.errors?.schoolName?.[0]} required />
         <Field name="schoolSlug" label="School slug" placeholder="greenfield-academy" error={state.errors?.schoolSlug?.[0]} />
         <label className="block">
-          <span className="mb-2 block text-sm font-semibold">School type</span>
-          <select name="schoolType" required className="h-12 w-full rounded-xl border bg-white px-4 text-base outline-none focus:ring-2 focus:ring-ring">
+          <span className="mb-2 block text-sm font-semibold">School type <span className="text-red-600" aria-hidden="true">*</span><span className="sr-only"> (required)</span></span>
+          <select name="schoolType" required aria-required="true" className="h-12 w-full rounded-xl border bg-white px-4 text-base outline-none focus:ring-2 focus:ring-ring">
             <option value="combined">Combined</option>
             <option value="nursery">Nursery</option>
             <option value="primary">Primary</option>
@@ -35,8 +35,8 @@ export function RegisterSchoolForm() {
         <Field name="confirmPassword" label="Confirm password" type="password" error={state.errors?.confirmPassword?.[0]} required />
       </div>
       <label className="block">
-        <span className="mb-2 block text-sm font-semibold">Address</span>
-        <textarea name="address" required className="min-h-24 w-full rounded-xl border bg-white px-4 py-3 text-base outline-none focus:ring-2 focus:ring-ring" />
+        <span className="mb-2 block text-sm font-semibold">Address <span className="text-red-600" aria-hidden="true">*</span><span className="sr-only"> (required)</span></span>
+        <textarea name="address" required aria-required="true" className="min-h-24 w-full rounded-xl border bg-white px-4 py-3 text-base outline-none focus:ring-2 focus:ring-ring" />
         {state.errors?.address ? <span className="mt-1 block text-xs text-red-600">{state.errors.address[0]}</span> : null}
       </label>
       {state.message ? <p className={state.ok ? "text-sm font-medium text-primary" : "text-sm font-medium text-red-600"}>{state.message}</p> : null}
@@ -49,10 +49,11 @@ export function RegisterSchoolForm() {
 function Field({ name, label, type = "text", placeholder, error, required }: { name: string; label: string; type?: string; placeholder?: string; error?: string; required?: boolean }) {
   return (
     <label className="block">
-      <span className="mb-2 block text-sm font-semibold">{label}</span>
-      <Input name={name} type={type} placeholder={placeholder} required={required} />
+      <span className="mb-2 block text-sm font-semibold">{label}{required ? <><span className="ml-1 text-red-600" aria-hidden="true">*</span><span className="sr-only"> (required)</span></> : null}</span>
+      <Input name={name} type={type} placeholder={placeholder} required={required} aria-required={required} />
       {error ? <span className="mt-1 block text-xs text-red-600">{error}</span> : null}
     </label>
   );
 }
+
 

@@ -1,0 +1,6 @@
+﻿import { PageHeader } from "@/components/dashboard/page-header";
+import { ImportCard, ImportHistoryTable, type HistoryRow } from "@/components/imports/import-centre";
+import { IMPORT_MODULES } from "@/lib/imports/types";
+import { getSchoolContext, assertCanManageSetup } from "@/lib/school-context";
+export default async function ImportsPage(){const context=await getSchoolContext();assertCanManageSetup(context);const {data}=await context.supabase.from("data_import_jobs").select("id,module,original_filename,status,total_rows,imported_rows,skipped_rows,failed_rows,created_at,users_profile!data_import_jobs_created_by_user_profile_id_fkey(first_name,last_name)").eq("school_id",context.schoolId).order("created_at",{ascending:false}).limit(50);const rows=(data??[]) as unknown as HistoryRow[];return <div className="space-y-7"><PageHeader eyebrow="School records" title="Data Imports" description="Validate and import existing school records from secure CSV templates."/><div className="grid gap-4 lg:grid-cols-2">{IMPORT_MODULES.map(m=><ImportCard key={m} module={m} lastStatus={rows.find(r=>r.module===m)?.status}/>)}</div><section className="space-y-3"><h2 className="text-xl font-bold">Import history</h2><ImportHistoryTable rows={rows}/></section></div>}
+

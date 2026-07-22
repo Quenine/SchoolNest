@@ -1,5 +1,6 @@
-import { z } from "zod";
+﻿import { z } from "zod";
 import { optionalDate, optionalText, optionalUuid } from "@/lib/validation/common";
+import { isFutureInSchoolTimezone } from "@/lib/dates";
 
 export const studentSchema = z.object({
   id: optionalUuid,
@@ -25,7 +26,9 @@ export const studentSchema = z.object({
   student_status: z.enum(["active", "graduated", "withdrawn", "suspended", "transferred"]).default("active"),
   current_class_id: optionalUuid,
   current_arm_id: optionalUuid,
-}).refine((value) => value.student_status !== "active" || Boolean(value.current_class_id), {
+}).refine((value) => !value.date_of_birth || !isFutureInSchoolTimezone(value.date_of_birth), { path: ["date_of_birth"], message: "Date of birth cannot be in the future" })
+.refine((value) => !value.admission_date || !isFutureInSchoolTimezone(value.admission_date), { path: ["admission_date"], message: "Admission date cannot be in the future" })
+.refine((value) => value.student_status !== "active" || Boolean(value.current_class_id), {
   path: ["current_class_id"],
   message: "Choose a class for an active student",
 });
@@ -35,3 +38,4 @@ export const changeStudentClassArmSchema = z.object({
   current_class_id: z.string().uuid("Choose a class"),
   current_arm_id: optionalUuid,
 });
+
