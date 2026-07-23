@@ -77,3 +77,7 @@ The next major product step remains Step 5 — Attendance & Communication. Apply
 - [ ] Complete the documented two-school manual acceptance suite for attendance and announcements.
 - [ ] Validate 360px, 390px, 768px and desktop experiences with real assigned teachers and linked parents.
 - [ ] Next planned product step: Results & grading discovery and design. Do not implement until Step 5 manual acceptance passes.
+
+- [ ] Execute Step 5.1 and its verification SQL on the target Supabase database.
+- [ ] Complete every two-school, role, schedule, expiry, lock and viewport check in STEP_5_ACCEPTANCE.md.
+- [ ] Do not begin Results & Grading discovery until Step 5 acceptance is signed off.

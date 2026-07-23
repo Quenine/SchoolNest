@@ -53,3 +53,5 @@ Manual acceptance remains required at 360px, 390px, and desktop widths: verify s
 ## Step 5 product experience
 
 Attendance prioritizes today, explicit teacher assignments, historical roster snapshots and clear draft/submitted/locked states. Parent views are linked-child only. Announcements are unread-first, pinned-aware and in-app only, with scheduled visibility evaluated at query time. No SMS/email success language exists. Automated checks pass before manual two-school, role, transition and responsive acceptance; overall stabilization remains pending until that manual pass.
+
+Step 5 functional-readiness work closes identified automated UX gaps: real expected-register counts, detailed roster synchronization, unsaved navigation protection, recorded-day trends, linked-child filters, multi-target announcements, unique audience estimates and bounded management lists. Production readiness still requires live migration, two-school isolation and viewport acceptance evidence.

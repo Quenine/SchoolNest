@@ -12,3 +12,5 @@ Student Add-ons uses a compact responsive control grid and a searchable listbox.
 ## Step 5 mobile workflows
 
 Attendance uses one-column student cards on phones, 44px status controls, visible selected states, searchable rosters, required excused reasons, restrained pending feedback and a sticky Save/Submit action row. Announcement cards wrap plain text safely and expose priority/read state without colour alone. Acceptance widths are 360px, 390px, 768px and 1024px+; live manual verification is required before release.
+
+Step 5 closure adds responsive cascading assignment/announcement controls, removable keyboard-accessible target chips, mobile-first parent filters and protected attendance editing. Required visual acceptance remains 360×800, 390×844, 768×1024 and 1024px+ using the checklist in STEP_5_ACCEPTANCE.md.

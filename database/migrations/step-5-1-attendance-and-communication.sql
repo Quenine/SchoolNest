@@ -3,7 +3,7 @@
 -- Additive and safely rerunnable for objects/policies created by this migration.
 do $schoolnest$
 begin
- if to_regprocedure('public.is_platform_super_admin()') is null or to_regprocedure('public.has_school_role(uuid,text[])') is null then raise exception 'Step 5.1 requires canonical Step 2 RLS helpers'; end if;
+ if to_regprocedure('public.is_platform_super_admin()') is null or to_regprocedure('public.is_school_member(uuid)') is null or to_regprocedure('public.has_school_role(uuid,text[])') is null then raise exception 'Step 5.1 requires canonical Step 2 RLS helpers'; end if;
  if to_regclass('public.student_enrollments') is null or to_regclass('public.staff_profiles') is null or to_regclass('public.student_guardians') is null then raise exception 'Step 5.1 requires core school record tables'; end if;
 end $schoolnest$;
 
@@ -79,26 +79,59 @@ create index if not exists announcements_feed_idx on public.announcements(school
 create index if not exists announcement_targets_lookup_idx on public.announcement_targets(school_id,announcement_id,target_type);
 create index if not exists announcement_reads_lookup_idx on public.announcement_reads(school_id,announcement_id,user_profile_id);
 
+
+do $schoolnest$
+begin
+ if not exists(select 1 from pg_constraint where conname='class_arms_school_class_id_key') then alter table public.class_arms add constraint class_arms_school_class_id_key unique(school_id,class_id,id); end if;
+ if not exists(select 1 from pg_constraint where conname='class_staff_assignment_arm_matches_class_fkey') then alter table public.class_staff_assignments add constraint class_staff_assignment_arm_matches_class_fkey foreign key(school_id,class_id,arm_id) references public.class_arms(school_id,class_id,id) on delete cascade; end if;
+ if not exists(select 1 from pg_constraint where conname='attendance_register_arm_matches_class_fkey') then alter table public.attendance_registers add constraint attendance_register_arm_matches_class_fkey foreign key(school_id,class_id,arm_id) references public.class_arms(school_id,class_id,id) on delete restrict; end if;
+ if not exists(select 1 from pg_constraint where conname='announcement_target_arm_matches_class_fkey') then alter table public.announcement_targets add constraint announcement_target_arm_matches_class_fkey foreign key(school_id,class_id,arm_id) references public.class_arms(school_id,class_id,id) on delete cascade; end if;
+end $schoolnest$;
 create or replace function public.has_active_class_assignment(target_school_id uuid,target_session_id uuid,target_class_id uuid,target_arm_id uuid default null)
 returns boolean language sql stable security definer set search_path=public,pg_temp as $$
  select auth.uid() is not null and exists(select 1 from public.class_staff_assignments a join public.staff_profiles s on s.school_id=a.school_id and s.id=a.staff_profile_id where a.school_id=target_school_id and a.academic_session_id=target_session_id and a.class_id=target_class_id and (a.arm_id is null or target_arm_id is null or a.arm_id=target_arm_id) and a.is_active and (a.starts_on is null or a.starts_on<=current_date) and (a.ends_on is null or a.ends_on>=current_date) and s.user_profile_id=auth.uid() and s.employment_status='active');
 $$;
 
+revoke all on function public.has_active_class_assignment(uuid,uuid,uuid,uuid) from public; grant execute on function public.has_active_class_assignment(uuid,uuid,uuid,uuid) to authenticated;
+
 alter table public.class_staff_assignments enable row level security; alter table public.attendance_registers enable row level security; alter table public.attendance_entries enable row level security; alter table public.announcements enable row level security; alter table public.announcement_targets enable row level security; alter table public.announcement_reads enable row level security;
 
-do $schoolnest$ declare t text; begin foreach t in array array['class_staff_assignments','attendance_registers','attendance_entries','announcements','announcement_targets','announcement_reads'] loop execute format('revoke all on table public.%I from anon, authenticated',t); execute format('grant select, insert, update on table public.%I to authenticated',t); end loop; end $schoolnest$;
+do $schoolnest$
+declare t text;
+begin
+ foreach t in array array['class_staff_assignments','attendance_registers','attendance_entries','announcements','announcement_targets','announcement_reads'] loop
+  execute format('revoke all on table public.%I from anon, authenticated',t);
+ end loop;
+end $schoolnest$;
+grant select, insert, update on table public.class_staff_assignments to authenticated;
+grant select on table public.attendance_registers, public.attendance_entries to authenticated;
+grant select, insert, update on table public.announcements, public.announcement_targets, public.announcement_reads to authenticated;
 
-drop policy if exists class_staff_admin on public.class_staff_assignments; create policy class_staff_admin on public.class_staff_assignments for all to authenticated using(public.is_platform_super_admin() or public.has_school_role(school_id,array['school_owner','principal','head_teacher','school_admin']::text[])) with check(public.is_platform_super_admin() or public.has_school_role(school_id,array['school_owner','principal','head_teacher','school_admin']::text[]));
+drop policy if exists class_staff_admin on public.class_staff_assignments;
+drop policy if exists class_staff_admin_select on public.class_staff_assignments;
+drop policy if exists class_staff_admin_insert on public.class_staff_assignments;
+drop policy if exists class_staff_admin_update on public.class_staff_assignments;
+create policy class_staff_admin_select on public.class_staff_assignments for select to authenticated using(public.is_platform_super_admin() or public.has_school_role(school_id,array['school_owner','principal','head_teacher','school_admin']::text[]));
+create policy class_staff_admin_insert on public.class_staff_assignments for insert to authenticated with check(public.is_platform_super_admin() or public.has_school_role(school_id,array['school_owner','principal','head_teacher','school_admin']::text[]));
+create policy class_staff_admin_update on public.class_staff_assignments for update to authenticated using(public.is_platform_super_admin() or public.has_school_role(school_id,array['school_owner','principal','head_teacher','school_admin']::text[])) with check(public.is_platform_super_admin() or public.has_school_role(school_id,array['school_owner','principal','head_teacher','school_admin']::text[]));
 drop policy if exists class_staff_teacher_read on public.class_staff_assignments; create policy class_staff_teacher_read on public.class_staff_assignments for select to authenticated using(exists(select 1 from public.staff_profiles s where s.school_id=class_staff_assignments.school_id and s.id=class_staff_assignments.staff_profile_id and s.user_profile_id=auth.uid()));
 drop policy if exists attendance_register_access on public.attendance_registers; create policy attendance_register_access on public.attendance_registers for select to authenticated using(public.is_platform_super_admin() or public.has_school_role(school_id,array['school_owner','principal','head_teacher','school_admin']::text[]) or public.has_active_class_assignment(school_id,academic_session_id,class_id,arm_id));
-drop policy if exists attendance_register_manage on public.attendance_registers; create policy attendance_register_manage on public.attendance_registers for all to authenticated using(public.is_platform_super_admin() or public.has_school_role(school_id,array['school_owner','principal','head_teacher','school_admin']::text[]) or (status='draft' and public.has_active_class_assignment(school_id,academic_session_id,class_id,arm_id))) with check(public.is_platform_super_admin() or public.has_school_role(school_id,array['school_owner','principal','head_teacher','school_admin']::text[]) or public.has_active_class_assignment(school_id,academic_session_id,class_id,arm_id));
-drop policy if exists attendance_entries_staff on public.attendance_entries; create policy attendance_entries_staff on public.attendance_entries for all to authenticated using(exists(select 1 from public.attendance_registers r where r.school_id=attendance_entries.school_id and r.id=attendance_entries.attendance_register_id and (public.is_platform_super_admin() or public.has_school_role(r.school_id,array['school_owner','principal','head_teacher','school_admin']::text[]) or public.has_active_class_assignment(r.school_id,r.academic_session_id,r.class_id,r.arm_id)))) with check(exists(select 1 from public.attendance_registers r where r.school_id=attendance_entries.school_id and r.id=attendance_entries.attendance_register_id and r.status='draft' and (public.is_platform_super_admin() or public.has_school_role(r.school_id,array['school_owner','principal','head_teacher','school_admin']::text[]) or public.has_active_class_assignment(r.school_id,r.academic_session_id,r.class_id,r.arm_id))));
+drop policy if exists attendance_register_manage on public.attendance_registers;
+drop policy if exists attendance_entries_staff on public.attendance_entries;
+drop policy if exists attendance_entries_staff_select on public.attendance_entries;
+create policy attendance_entries_staff_select on public.attendance_entries for select to authenticated using(exists(select 1 from public.attendance_registers r where r.school_id=attendance_entries.school_id and r.id=attendance_entries.attendance_register_id and (public.is_platform_super_admin() or public.has_school_role(r.school_id,array['school_owner','principal','head_teacher','school_admin']::text[]) or public.has_active_class_assignment(r.school_id,r.academic_session_id,r.class_id,r.arm_id))));
 drop policy if exists attendance_entries_parent_read on public.attendance_entries; create policy attendance_entries_parent_read on public.attendance_entries for select to authenticated using(exists(select 1 from public.student_guardians sg join public.parent_guardians pg on pg.school_id=sg.school_id and pg.id=sg.guardian_id where sg.school_id=attendance_entries.school_id and sg.student_id=attendance_entries.student_id and pg.user_profile_id=auth.uid()));
 
-drop policy if exists announcements_member_read on public.announcements; create policy announcements_member_read on public.announcements for select to authenticated using(public.is_platform_super_admin() or public.is_school_member(school_id));
-drop policy if exists announcements_admin_manage on public.announcements; create policy announcements_admin_manage on public.announcements for all to authenticated using(public.is_platform_super_admin() or public.has_school_role(school_id,array['school_owner','principal','head_teacher','school_admin']::text[]) or created_by_user_profile_id=auth.uid()) with check(public.is_platform_super_admin() or public.has_school_role(school_id,array['school_owner','principal','head_teacher','school_admin']::text[]) or (created_by_user_profile_id=auth.uid() and audience_scope='classes'));
-drop policy if exists announcement_targets_member_read on public.announcement_targets; create policy announcement_targets_member_read on public.announcement_targets for select to authenticated using(public.is_platform_super_admin() or public.is_school_member(school_id));
-drop policy if exists announcement_targets_manage on public.announcement_targets; create policy announcement_targets_manage on public.announcement_targets for all to authenticated using(exists(select 1 from public.announcements a where a.school_id=announcement_targets.school_id and a.id=announcement_targets.announcement_id and (public.is_platform_super_admin() or public.has_school_role(a.school_id,array['school_owner','principal','head_teacher','school_admin']::text[]) or a.created_by_user_profile_id=auth.uid()))) with check(public.is_school_member(school_id));
+drop policy if exists announcements_member_read on public.announcements;
+drop policy if exists announcements_admin_manage on public.announcements;
+drop policy if exists announcements_manage_select on public.announcements;
+drop policy if exists announcements_manage_insert on public.announcements;
+drop policy if exists announcements_manage_update on public.announcements;
+create policy announcements_manage_select on public.announcements for select to authenticated using(public.is_platform_super_admin() or public.has_school_role(school_id,array['school_owner','principal','head_teacher','school_admin']::text[]) or created_by_user_profile_id=auth.uid());
+create policy announcements_manage_insert on public.announcements for insert to authenticated with check(public.is_platform_super_admin() or public.has_school_role(school_id,array['school_owner','principal','head_teacher','school_admin']::text[]) or (created_by_user_profile_id=auth.uid() and audience_scope='classes'));
+create policy announcements_manage_update on public.announcements for update to authenticated using(public.is_platform_super_admin() or public.has_school_role(school_id,array['school_owner','principal','head_teacher','school_admin']::text[]) or created_by_user_profile_id=auth.uid()) with check(public.is_platform_super_admin() or public.has_school_role(school_id,array['school_owner','principal','head_teacher','school_admin']::text[]) or (created_by_user_profile_id=auth.uid() and audience_scope='classes'));
+drop policy if exists announcement_targets_member_read on public.announcement_targets;
+drop policy if exists announcement_targets_manage on public.announcement_targets;
 drop policy if exists announcement_reads_self on public.announcement_reads; create policy announcement_reads_self on public.announcement_reads for select to authenticated using(user_profile_id=auth.uid() or public.has_school_role(school_id,array['school_owner','principal','head_teacher','school_admin']::text[]));
 drop policy if exists announcement_reads_self_insert on public.announcement_reads; create policy announcement_reads_self_insert on public.announcement_reads for insert to authenticated with check(user_profile_id=auth.uid() and public.is_school_member(school_id));
 drop policy if exists announcement_reads_self_update on public.announcement_reads; create policy announcement_reads_self_update on public.announcement_reads for update to authenticated using(user_profile_id=auth.uid()) with check(user_profile_id=auth.uid());
@@ -119,6 +152,8 @@ returns boolean language sql stable security definer set search_path=public,pg_t
  );
 $$;
 
+revoke all on function public.can_view_announcement(uuid) from public; grant execute on function public.can_view_announcement(uuid) to authenticated;
+
 drop policy if exists announcements_member_read on public.announcements;
 drop policy if exists announcements_visible_read on public.announcements;
 create policy announcements_visible_read on public.announcements for select to authenticated using(public.can_view_announcement(id) or created_by_user_profile_id=auth.uid());
@@ -131,8 +166,8 @@ create policy attendance_register_parent_read on public.attendance_registers for
 
 create or replace function public.save_attendance_register(
  target_school_id uuid,target_session_id uuid,target_term_id uuid,target_class_id uuid,target_arm_id uuid,target_date date,entry_changes jsonb default '[]'::jsonb,submit_register boolean default false)
-returns uuid language plpgsql security definer set search_path=public,pg_temp as $$
-declare register_id uuid; is_admin boolean; unmarked integer;
+returns jsonb language plpgsql security definer set search_path=public,pg_temp as $
+declare register_id uuid; is_admin boolean; unmarked integer; eligible_count integer; existing_count integer; added_count integer;
 begin
  if auth.uid() is null then raise exception 'Authentication required'; end if;
  if target_date>current_date then raise exception 'Future attendance dates are not allowed'; end if;
@@ -145,6 +180,8 @@ begin
  values(target_school_id,target_session_id,target_term_id,target_class_id,target_arm_id,target_date,auth.uid()) on conflict do nothing;
  select id into register_id from public.attendance_registers where school_id=target_school_id and academic_session_id=target_session_id and term_id=target_term_id and attendance_date=target_date and class_id=target_class_id and arm_id is not distinct from target_arm_id for update;
  if (select status from public.attendance_registers where id=register_id)<>'draft' then raise exception 'Only draft registers can be changed'; end if;
+ select count(*) into existing_count from public.attendance_entries where attendance_register_id=register_id;
+ select count(distinct e.student_id) into eligible_count from public.student_enrollments e join public.students st on st.school_id=e.school_id and st.id=e.student_id where e.school_id=target_school_id and e.academic_session_id=target_session_id and e.class_id=target_class_id and e.enrollment_status='active' and st.student_status='active' and (target_arm_id is null or e.arm_id=target_arm_id);
  insert into public.attendance_entries(school_id,attendance_register_id,student_id)
  select target_school_id,register_id,e.student_id from public.student_enrollments e join public.students s on s.school_id=e.school_id and s.id=e.student_id
  where e.school_id=target_school_id and e.academic_session_id=target_session_id and e.class_id=target_class_id and e.enrollment_status='active' and s.student_status='active' and (target_arm_id is null or e.arm_id=target_arm_id)
@@ -158,8 +195,8 @@ begin
   update public.attendance_registers set status='submitted',submitted_by_user_profile_id=auth.uid(),submitted_at=now(),updated_at=now() where id=register_id;
   insert into public.audit_logs(school_id,actor_user_id,action,entity_type,entity_id,metadata) values(target_school_id,auth.uid(),'attendance.submitted','attendance_registers',register_id::text,jsonb_build_object('date',target_date));
  else update public.attendance_registers set updated_at=now() where id=register_id; end if;
- return register_id;
-end $$;
+ return jsonb_build_object('register_id',register_id,'eligible_count',eligible_count,'existing_count',existing_count,'added_count',added_count,'already_present_count',greatest(eligible_count-added_count,0),'historical_preserved_count',greatest(existing_count-(eligible_count-added_count),0));
+end $;
 
 create or replace function public.transition_attendance_register(target_register_id uuid,target_status text,reason text default null)
 returns void language plpgsql security definer set search_path=public,pg_temp as $$
@@ -175,11 +212,19 @@ revoke insert, update, delete on table public.attendance_registers from authenti
 revoke all on function public.save_attendance_register(uuid,uuid,uuid,uuid,uuid,date,jsonb,boolean) from public; grant execute on function public.save_attendance_register(uuid,uuid,uuid,uuid,uuid,date,jsonb,boolean) to authenticated;
 revoke all on function public.transition_attendance_register(uuid,text,text) from public; grant execute on function public.transition_attendance_register(uuid,text,text) to authenticated;
 drop policy if exists announcement_targets_manage on public.announcement_targets;
-create policy announcement_targets_manage on public.announcement_targets for all to authenticated
+drop policy if exists announcement_targets_manage_select on public.announcement_targets;
+drop policy if exists announcement_targets_manage_insert on public.announcement_targets;
+drop policy if exists announcement_targets_manage_update on public.announcement_targets;
+create policy announcement_targets_manage_select on public.announcement_targets for select to authenticated
+ using(exists(select 1 from public.announcements a where a.school_id=announcement_targets.school_id and a.id=announcement_targets.announcement_id and (public.is_platform_super_admin() or public.has_school_role(a.school_id,array['school_owner','principal','head_teacher','school_admin']::text[]) or a.created_by_user_profile_id=auth.uid())));
+create policy announcement_targets_manage_insert on public.announcement_targets for insert to authenticated
+ with check(exists(select 1 from public.announcements a where a.school_id=announcement_targets.school_id and a.id=announcement_targets.announcement_id and (
+  public.is_platform_super_admin() or public.has_school_role(a.school_id,array['school_owner','principal','head_teacher','school_admin']::text[]) or
+  (a.created_by_user_profile_id=auth.uid() and a.audience_scope='classes' and announcement_targets.target_type in ('class','arm') and exists(select 1 from public.class_staff_assignments ca join public.staff_profiles sp on sp.id=ca.staff_profile_id and sp.school_id=ca.school_id where ca.school_id=a.school_id and ca.class_id=announcement_targets.class_id and (announcement_targets.arm_id is null or ca.arm_id is null or ca.arm_id=announcement_targets.arm_id) and ca.is_active and sp.user_profile_id=auth.uid()))
+ )));
+create policy announcement_targets_manage_update on public.announcement_targets for update to authenticated
  using(exists(select 1 from public.announcements a where a.school_id=announcement_targets.school_id and a.id=announcement_targets.announcement_id and (public.is_platform_super_admin() or public.has_school_role(a.school_id,array['school_owner','principal','head_teacher','school_admin']::text[]) or a.created_by_user_profile_id=auth.uid())))
  with check(exists(select 1 from public.announcements a where a.school_id=announcement_targets.school_id and a.id=announcement_targets.announcement_id and (
   public.is_platform_super_admin() or public.has_school_role(a.school_id,array['school_owner','principal','head_teacher','school_admin']::text[]) or
   (a.created_by_user_profile_id=auth.uid() and a.audience_scope='classes' and announcement_targets.target_type in ('class','arm') and exists(select 1 from public.class_staff_assignments ca join public.staff_profiles sp on sp.id=ca.staff_profile_id and sp.school_id=ca.school_id where ca.school_id=a.school_id and ca.class_id=announcement_targets.class_id and (announcement_targets.arm_id is null or ca.arm_id is null or ca.arm_id=announcement_targets.arm_id) and ca.is_active and sp.user_profile_id=auth.uid()))
  )));
-
-

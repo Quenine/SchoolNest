@@ -18,3 +18,9 @@ Step 5.1 adds explicit assignments, register snapshots/entries, announcements/ta
 ## Manual acceptance
 
 Run the complete A–E checklist from the Step 5 brief using two schools and linked/unlinked users. Test 360, 390, 768 and 1024+ widths. Verify assignment deactivation, future-date rejection, roster persistence, submit/reopen/lock/unlock, unrelated URL denial, audience scheduling/expiry/read state, and zero cross-tenant visibility. These live Supabase checks remain required before production readiness.
+
+## Closure pass
+
+Step 5.1 now uses operation-specific RLS policies and least-privilege grants; attendance mutation remains RPC-only. `database/verification/step-5-1-verification.sql` audits the live migration contract. Assignment cascading/search/filtering, sync feedback, unsaved-change protection, operational overview, recorded-day trends, parent filters, announcement multi-target chips, audience estimates and bounded management history were added.
+
+Automated verification does not replace the live two-school and viewport checklist in `STEP_5_ACCEPTANCE.md`.

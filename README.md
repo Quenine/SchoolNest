@@ -111,3 +111,5 @@ After applying Step 4.9, school administrators can use `/dashboard/school-admin/
 ## Step 5 — Attendance & Communication
 
 Daily Attendance and in-app Announcements are available for school administrators, explicitly assigned teachers, and linked parents. Apply `database/migrations/step-5-1-attendance-and-communication.sql` after the Step 2 foundation and current Step 4 migrations. See `ATTENDANCE_MODEL.md`, `COMMUNICATION_MODEL.md`, and `STEP_5_IMPLEMENTATION_REPORT.md`. External message delivery is not part of this release.
+
+Step 5 live acceptance instructions are in `STEP_5_ACCEPTANCE.md`. Run the Step 5.1 migration, then its read-only verification SQL before role testing. Attendance percentage treats late as present-equivalent and uses recorded attendance entries only. Announcement metrics are eligibility/read estimates, never external delivery.

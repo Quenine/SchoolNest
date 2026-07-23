@@ -53,3 +53,5 @@ The Import Centre permits only authenticated setup administrators, derives tenan
 ## Step 5 security boundary
 
 Teacher attendance and class-announcement authority derives only from active tenant-scoped class-staff assignments linked to the authenticated staff profile. Parent attendance and class-announcement visibility derives only from linked children. Attendance batch writes use a security-definer RPC with a fixed search path, `auth.uid()` enforcement, tenant/assignment validation, enrollment validation, future-date rejection and locked-state protection. Announcement visibility resolves effective time, expiry and audience under RLS. No service-role secret is used by browser code and no external delivery is claimed.
+
+The Step 5 SQL checker rejects broad authenticated `FOR ALL` policies, anonymous/public policies, missing fixed search paths and missing RPC privilege boundaries. Live verification additionally inspects RLS flags, indexes, constraints, policies and grants. Multi-target announcement IDs are tenant validated and teacher targets resolve active assignments server-side.

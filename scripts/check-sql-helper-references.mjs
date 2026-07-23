@@ -1,4 +1,4 @@
-﻿import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
 const forbidden = [
@@ -19,6 +19,18 @@ async function sqlFiles(directory) {
 }
 
 const failures = [];
+const step5Path = path.resolve("database/migrations/step-5-1-attendance-and-communication.sql");
+const step5 = await readFile(step5Path, "utf8");
+for (const required of [
+  "security definer set search_path=public,pg_temp",
+  "auth.uid()",
+  "revoke all on function public.save_attendance_register",
+  "grant select on table public.attendance_registers, public.attendance_entries",
+]) {
+  if (!step5.toLowerCase().includes(required.toLowerCase())) failures.push(`${step5Path}: missing Step 5 security contract: ${required}`);
+}
+if (/for\s+all\s+to\s+authenticated/i.test(step5)) failures.push(`${step5Path}: broad FOR ALL authenticated policy is forbidden`);
+if (/create\s+policy[^;]+\bto\s+(anon|public)\b/is.test(step5)) failures.push(`${step5Path}: anonymous/public Step 5 policy is forbidden`);
 for (const file of await sqlFiles(path.resolve("database"))) {
   const source = await readFile(file, "utf8");
   for (const token of forbidden) {
