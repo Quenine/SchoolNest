@@ -35,4 +35,18 @@ describe('Step 5 review-fix contracts',()=>{
     expect(source).toContain("eq('staff_profiles.employment_status','active')");
     expect(source).toContain('activeAudienceAssignments');
   });
+  it('scopes createAnnouncement authorization to current effective assignments',()=>{
+    const source=read('app/dashboard/step-5-actions.ts');
+    const start=source.indexOf('export async function createAnnouncement');
+    const end=source.indexOf('function statusTime',start);
+    const definition=source.slice(start,end);
+    expect(definition).toContain(".from('academic_sessions').select('id').eq('school_id',c.schoolId).eq('is_current',true).maybeSingle()");
+    expect(definition).toContain('if(sessionError||!currentSession)return fail');
+    expect(definition).toContain(".eq('employment_status','active').maybeSingle()");
+    expect(definition).toContain(".eq('academic_session_id',currentSession.id)");
+    expect(definition).toContain(".eq('is_active',true)");
+    expect(definition).toContain('!x.starts_on||x.starts_on<=today');
+    expect(definition).toContain('!x.ends_on||x.ends_on>=today');
+    expect(definition).toContain('teacherTargetsAllowed(targets,effective.map');
+  });
 });

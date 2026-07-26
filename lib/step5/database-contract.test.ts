@@ -108,6 +108,30 @@ describe('Step 5 database contract',()=>{
       expect(selfUpdate).not.toContain('has_school_role');
     }
   });
+  it('rejects historical active assignments for every teacher announcement path',()=>{
+    for(const path of [closurePath,schemaPath]){
+      const sql=read(path).toLowerCase();
+      const functionStart=sql.indexOf('create or replace function public.can_view_announcement');
+      const functionEnd=sql.indexOf('alter table public.class_staff_assignments',functionStart);
+      const visibility=sql.slice(functionStart,functionEnd);
+      expect(visibility).toContain('academic_sessions assignment_session');
+      expect(visibility).toContain('assignment_session.school_id = csa.school_id');
+      expect(visibility).toContain('assignment_session.id = csa.academic_session_id');
+      expect(visibility).toContain('assignment_session.is_current = true');
+
+      const rowInsert=policy(sql,'announcements_manage_insert');
+      const rowUpdate=policy(sql,'announcements_manage_update');
+      const targetInsert=policy(sql,'announcement_targets_manage_insert');
+      const targetUpdate=policy(sql,'announcement_targets_manage_update');
+      for(const definition of [rowInsert,rowUpdate,targetInsert,targetUpdate]){
+        expect(definition).toContain('academic_sessions assignment_session');
+        expect(definition).toContain('assignment_session.id = csa.academic_session_id');
+        expect(definition).toContain('assignment_session.is_current = true');
+      }
+      expect((rowUpdate.match(/assignment_session\.is_current = true/g)??[]).length).toBeGreaterThanOrEqual(2);
+      expect((targetUpdate.match(/assignment_session\.is_current = true/g)??[]).length).toBeGreaterThanOrEqual(2);
+    }
+  });
 });
 
 function policy(sql:string,name:string){

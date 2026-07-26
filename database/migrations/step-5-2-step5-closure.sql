@@ -157,6 +157,10 @@ as $schoolnest$
                   join public.staff_profiles sp
                     on sp.school_id = csa.school_id
                    and sp.id = csa.staff_profile_id
+                  join public.academic_sessions assignment_session
+                    on assignment_session.school_id = csa.school_id
+                   and assignment_session.id = csa.academic_session_id
+                   and assignment_session.is_current = true
                   where csa.school_id = a.school_id
                     and csa.class_id = at.class_id
                     and sp.user_profile_id = auth.uid()
@@ -308,6 +312,7 @@ create policy announcements_manage_insert on public.announcements for insert to 
           from public.users_profile up
           join public.staff_profiles sp on sp.school_id = up.school_id and sp.user_profile_id = up.id and sp.employment_status = 'active'
           join public.class_staff_assignments csa on csa.school_id = sp.school_id and csa.staff_profile_id = sp.id
+          join public.academic_sessions assignment_session on assignment_session.school_id = csa.school_id and assignment_session.id = csa.academic_session_id and assignment_session.is_current = true
           where up.id = auth.uid() and up.school_id = announcements.school_id and up.is_active
             and csa.is_active
             and (csa.starts_on is null or csa.starts_on <= current_date)
@@ -326,6 +331,7 @@ create policy announcements_manage_update on public.announcements for update to 
         select 1 from public.users_profile up
         join public.staff_profiles sp on sp.school_id = up.school_id and sp.user_profile_id = up.id and sp.employment_status = 'active'
         join public.class_staff_assignments csa on csa.school_id = sp.school_id and csa.staff_profile_id = sp.id
+          join public.academic_sessions assignment_session on assignment_session.school_id = csa.school_id and assignment_session.id = csa.academic_session_id and assignment_session.is_current = true
         where up.id = auth.uid() and up.school_id = announcements.school_id and up.is_active
           and csa.is_active
           and (csa.starts_on is null or csa.starts_on <= current_date)
@@ -342,6 +348,7 @@ create policy announcements_manage_update on public.announcements for update to 
         select 1 from public.users_profile up
         join public.staff_profiles sp on sp.school_id = up.school_id and sp.user_profile_id = up.id and sp.employment_status = 'active'
         join public.class_staff_assignments csa on csa.school_id = sp.school_id and csa.staff_profile_id = sp.id
+          join public.academic_sessions assignment_session on assignment_session.school_id = csa.school_id and assignment_session.id = csa.academic_session_id and assignment_session.is_current = true
         where up.id = auth.uid() and up.school_id = announcements.school_id and up.is_active
           and csa.is_active
           and (csa.starts_on is null or csa.starts_on <= current_date)
@@ -388,6 +395,10 @@ create policy announcement_targets_manage_insert on public.announcement_targets 
             from public.class_staff_assignments csa
             join public.staff_profiles sp
               on sp.school_id = csa.school_id and sp.id = csa.staff_profile_id
+            join public.academic_sessions assignment_session
+              on assignment_session.school_id = csa.school_id
+             and assignment_session.id = csa.academic_session_id
+             and assignment_session.is_current = true
             where csa.school_id = a.school_id
               and csa.class_id = announcement_targets.class_id
               and (csa.arm_id is null or csa.arm_id is not distinct from announcement_targets.arm_id)
@@ -415,6 +426,7 @@ create policy announcement_targets_manage_update on public.announcement_targets 
           and exists (
             select 1 from public.class_staff_assignments csa
             join public.staff_profiles sp on sp.school_id = csa.school_id and sp.id = csa.staff_profile_id
+            join public.academic_sessions assignment_session on assignment_session.school_id = csa.school_id and assignment_session.id = csa.academic_session_id and assignment_session.is_current = true
             where csa.school_id = a.school_id
               and csa.class_id = announcement_targets.class_id
               and (csa.arm_id is null or csa.arm_id is not distinct from announcement_targets.arm_id)
@@ -441,6 +453,7 @@ create policy announcement_targets_manage_update on public.announcement_targets 
           and exists (
             select 1 from public.class_staff_assignments csa
             join public.staff_profiles sp on sp.school_id = csa.school_id and sp.id = csa.staff_profile_id
+            join public.academic_sessions assignment_session on assignment_session.school_id = csa.school_id and assignment_session.id = csa.academic_session_id and assignment_session.is_current = true
             where csa.school_id = a.school_id
               and csa.class_id = announcement_targets.class_id
               and (csa.arm_id is null or csa.arm_id is not distinct from announcement_targets.arm_id)

@@ -139,6 +139,13 @@ begin
       and pg_get_functiondef(p.oid) like '%enrollment_status = ''active''%'
       and pg_get_functiondef(p.oid) like '%parent_guardians%'
   ) then failures := array_append(failures,'parent class-announcement visibility is not scoped to active current-session enrollment'); end if;
+  if not exists(select 1 from pg_proc p where p.oid=to_regprocedure('public.can_view_announcement(uuid)') and pg_get_functiondef(p.oid) like '%academic_sessions assignment_session%' and pg_get_functiondef(p.oid) like '%assignment_session.school_id = csa.school_id%' and pg_get_functiondef(p.oid) like '%assignment_session.id = csa.academic_session_id%' and pg_get_functiondef(p.oid) like '%assignment_session.is_current = true%') then failures := array_append(failures,'teacher class-announcement visibility is not scoped to the current academic session'); end if;
+
+  if not exists(select 1 from pg_policies where schemaname='public' and policyname='announcements_manage_insert' and with_check like '%academic_sessions%' and with_check like '%assignment_session.id = csa.academic_session_id%' and with_check like '%assignment_session.is_current%') then failures := array_append(failures,'teacher announcement insert is not scoped to the current academic session'); end if;
+  if not exists(select 1 from pg_policies where schemaname='public' and policyname='announcements_manage_update' and qual like '%assignment_session.id = csa.academic_session_id%' and qual like '%assignment_session.is_current%' and with_check like '%assignment_session.id = csa.academic_session_id%' and with_check like '%assignment_session.is_current%') then failures := array_append(failures,'teacher announcement update is not scoped to the current academic session'); end if;
+
+  if not exists(select 1 from pg_policies where schemaname='public' and policyname='announcement_targets_manage_insert' and with_check like '%assignment_session.id = csa.academic_session_id%' and with_check like '%assignment_session.is_current%') then failures := array_append(failures,'teacher announcement target insert is not scoped to the current academic session'); end if;
+  if not exists(select 1 from pg_policies where schemaname='public' and policyname='announcement_targets_manage_update' and qual like '%assignment_session.id = csa.academic_session_id%' and qual like '%assignment_session.is_current%' and with_check like '%assignment_session.id = csa.academic_session_id%' and with_check like '%assignment_session.is_current%') then failures := array_append(failures,'teacher announcement target update is not scoped to the current academic session'); end if;
   if cardinality(failures)>0 then
     raise exception 'Step 5 verification failed:%', E'\n- ' || array_to_string(failures,E'\n- ');
   end if;
