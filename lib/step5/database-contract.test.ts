@@ -81,12 +81,39 @@ describe('Step 5 database contract',()=>{
       expect(definition).toContain("se.enrollment_status = 'active'");
       expect(definition).toContain('pg.user_profile_id = auth.uid()');
     }
-  });});
+  });
+
+  it('allows administrator aggregate reads while preserving ordinary self-only access',()=>{
+    for(const path of [closurePath,schemaPath]){
+      const sql=read(path).toLowerCase();
+      const admin=policy(sql,'announcement_reads_admin_select');
+      expect(admin).toContain('is_platform_super_admin()');
+      expect(admin).toContain('has_school_role');
+      for(const role of ['school_owner','principal','head_teacher','school_admin'])expect(admin).toContain(`'${role}'`);
+      expect(admin).not.toContain('is_school_member');
+      expect(admin).not.toContain('for insert');
+      expect(admin).not.toContain('for update');
+
+      const selfSelect=policy(sql,'announcement_reads_self_select');
+      expect(selfSelect).toContain('user_profile_id = auth.uid()');
+      expect(selfSelect).not.toContain('has_school_role');
+      expect(selfSelect).not.toContain('is_school_member');
+
+      const selfInsert=policy(sql,'announcement_reads_self_insert');
+      const selfUpdate=policy(sql,'announcement_reads_self_update');
+      expect(selfInsert).toContain('user_profile_id = auth.uid()');
+      expect(selfUpdate).toContain('using (user_profile_id = auth.uid())');
+      expect(selfUpdate).toContain('user_profile_id = auth.uid()');
+      expect(selfInsert).not.toContain('has_school_role');
+      expect(selfUpdate).not.toContain('has_school_role');
+    }
+  });
+});
 
 function policy(sql:string,name:string){
   const start=sql.indexOf(`create policy ${name}`);
   expect(start).toBeGreaterThanOrEqual(0);
-  const candidates=[sql.indexOf('create policy ',start+14),sql.indexOf('drop policy ',start+14)].filter(index=>index>start);
+const candidates=[sql.indexOf('create policy ',start+14),sql.indexOf('drop policy ',start+14),sql.indexOf('\n-- ',start+14),sql.indexOf('\ncreate function ',start+14),sql.indexOf('\ncreate or replace function ',start+14),sql.indexOf('\ndrop function ',start+14)].filter(index=>index>start);
   const end=candidates.length?Math.min(...candidates):sql.length;
   return sql.slice(start,end);
 }

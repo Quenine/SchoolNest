@@ -1389,9 +1389,34 @@ create policy announcements_manage_update on public.announcements for update to 
 
 drop policy if exists announcement_targets_member_read on public.announcement_targets;
 drop policy if exists announcement_targets_manage on public.announcement_targets;
-drop policy if exists announcement_reads_self on public.announcement_reads; create policy announcement_reads_self on public.announcement_reads for select to authenticated using(user_profile_id=auth.uid() or public.has_school_role(school_id,array['school_owner','principal','head_teacher','school_admin']::text[]));
-drop policy if exists announcement_reads_self_insert on public.announcement_reads; create policy announcement_reads_self_insert on public.announcement_reads for insert to authenticated with check(user_profile_id=auth.uid() and public.is_school_member(school_id));
-drop policy if exists announcement_reads_self_update on public.announcement_reads; create policy announcement_reads_self_update on public.announcement_reads for update to authenticated using(user_profile_id=auth.uid()) with check(user_profile_id=auth.uid());
+drop policy if exists announcement_reads_self on public.announcement_reads;
+drop policy if exists announcement_reads_self_select on public.announcement_reads;
+drop policy if exists announcement_reads_self_insert on public.announcement_reads;
+drop policy if exists announcement_reads_self_update on public.announcement_reads;
+drop policy if exists announcement_reads_admin_select on public.announcement_reads;
+create policy announcement_reads_self_select on public.announcement_reads for select to authenticated
+  using (user_profile_id = auth.uid());
+create policy announcement_reads_admin_select on public.announcement_reads for select to authenticated
+  using (
+    public.is_platform_super_admin()
+    or public.has_school_role(
+      school_id,
+      array['school_owner','principal','head_teacher','school_admin']::text[]
+    )
+  );
+create policy announcement_reads_self_insert on public.announcement_reads for insert to authenticated
+  with check (
+    user_profile_id = auth.uid()
+    and public.is_school_member(school_id)
+    and public.can_view_announcement(announcement_id)
+  );
+create policy announcement_reads_self_update on public.announcement_reads for update to authenticated
+  using (user_profile_id = auth.uid())
+  with check (
+    user_profile_id = auth.uid()
+    and public.is_school_member(school_id)
+    and public.can_view_announcement(announcement_id)
+  );
 
 create or replace function public.can_view_announcement(target_announcement_id uuid)
 returns boolean

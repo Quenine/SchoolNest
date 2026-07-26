@@ -27,7 +27,7 @@ declare
     'attendance_entries_staff_select','attendance_entries_parent_read',
     'announcements_visible_read','announcements_manage_insert','announcements_manage_update',
     'announcement_targets_visible_read','announcement_targets_manage_insert','announcement_targets_manage_update',
-    'announcement_reads_self_select','announcement_reads_self_insert','announcement_reads_self_update'
+    'announcement_reads_self_select','announcement_reads_admin_select','announcement_reads_self_insert','announcement_reads_self_update'
   ];
   proc_record record;
 begin
@@ -89,7 +89,11 @@ begin
   if exists(select 1 from pg_policies where schemaname='public' and tablename=any(step5_tables) and cmd='ALL') then failures := array_append(failures,'Step 5 contains a FOR ALL policy'); end if;
   if exists(select 1 from pg_policies where schemaname='public' and tablename=any(step5_tables) and (roles @> array['anon']::name[] or roles @> array['public']::name[])) then failures := array_append(failures,'Step 5 contains an anon or PUBLIC policy'); end if;
 
-  if not exists(select 1 from pg_policies where schemaname='public' and policyname='announcement_reads_self_insert' and with_check like '%user_profile_id = auth.uid()%') then failures := array_append(failures,'announcement read insert is not self-scoped'); end if;
+  if not exists(select 1 from pg_policies where schemaname='public' and tablename='announcement_reads' and policyname='announcement_reads_admin_select' and cmd='SELECT' and qual like '%is_platform_super_admin%' and qual like '%has_school_role%' and qual like '%school_owner%' and qual like '%principal%' and qual like '%head_teacher%' and qual like '%school_admin%') then failures := array_append(failures,'announcement read aggregate SELECT is not restricted to approved administrators'); end if;
+  if exists(select 1 from pg_policies where schemaname='public' and tablename='announcement_reads' and policyname='announcement_reads_admin_select' and qual like '%is_school_member%') then failures := array_append(failures,'non-admin school members can receive aggregate announcement read access'); end if;
+  if not exists(select 1 from pg_policies where schemaname='public' and tablename='announcement_reads' and policyname='announcement_reads_self_select' and cmd='SELECT' and qual like '%user_profile_id = auth.uid()%' and qual not like '%is_school_member%') then failures := array_append(failures,'ordinary announcement read SELECT is not self-scoped'); end if;
+  if not exists(select 1 from pg_policies where schemaname='public' and tablename='announcement_reads' and policyname='announcement_reads_self_insert' and cmd='INSERT' and with_check like '%user_profile_id = auth.uid()%') then failures := array_append(failures,'announcement read insert is not self-scoped'); end if;
+  if not exists(select 1 from pg_policies where schemaname='public' and tablename='announcement_reads' and policyname='announcement_reads_self_update' and cmd='UPDATE' and qual like '%user_profile_id = auth.uid()%' and with_check like '%user_profile_id = auth.uid()%') then failures := array_append(failures,'announcement read update is not self-scoped'); end if;
   if not exists(select 1 from pg_policies where schemaname='public' and policyname='attendance_register_parent_read' and qual like '%student_guardians%' and qual like '%parent_guardians%' and qual like '%auth.uid()%') then failures := array_append(failures,'parent attendance read is not linked-child-only'); end if;
   if not exists(select 1 from pg_policies where schemaname='public' and policyname='attendance_register_staff_select' and qual like '%has_active_class_assignment%') then failures := array_append(failures,'teacher attendance read does not require explicit assignment'); end if;
 
