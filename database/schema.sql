@@ -1293,10 +1293,10 @@ begin
 end $schoolnest$;
 create or replace function public.has_active_class_assignment(target_school_id uuid,target_session_id uuid,target_class_id uuid,target_arm_id uuid default null)
 returns boolean language sql stable security definer set search_path=public,pg_temp as $$
- select auth.uid() is not null and exists(select 1 from public.class_staff_assignments a join public.staff_profiles s on s.school_id=a.school_id and s.id=a.staff_profile_id where a.school_id=target_school_id and a.academic_session_id=target_session_id and a.class_id=target_class_id and (a.arm_id is null or target_arm_id is null or a.arm_id=target_arm_id) and a.is_active and (a.starts_on is null or a.starts_on<=current_date) and (a.ends_on is null or a.ends_on>=current_date) and s.user_profile_id=auth.uid() and s.employment_status='active');
+ select auth.uid() is not null and exists(select 1 from public.class_staff_assignments a join public.staff_profiles s on s.school_id=a.school_id and s.id=a.staff_profile_id where a.school_id=target_school_id and a.academic_session_id=target_session_id and a.class_id=target_class_id and (a.arm_id is null or a.arm_id is not distinct from target_arm_id) and a.is_active and (a.starts_on is null or a.starts_on<=current_date) and (a.ends_on is null or a.ends_on>=current_date) and s.user_profile_id=auth.uid() and s.employment_status='active');
 $$;
 
-revoke all on function public.has_active_class_assignment(uuid,uuid,uuid,uuid) from public; grant execute on function public.has_active_class_assignment(uuid,uuid,uuid,uuid) to authenticated;
+revoke all on function public.has_active_class_assignment(uuid,uuid,uuid,uuid) from public; revoke all on function public.has_active_class_assignment(uuid,uuid,uuid,uuid) from anon; grant execute on function public.has_active_class_assignment(uuid,uuid,uuid,uuid) to authenticated;
 
 alter table public.class_staff_assignments enable row level security; alter table public.attendance_registers enable row level security; alter table public.attendance_entries enable row level security; alter table public.announcements enable row level security; alter table public.announcement_targets enable row level security; alter table public.announcement_reads enable row level security;
 
@@ -1304,7 +1304,7 @@ do $schoolnest$
 declare t text;
 begin
  foreach t in array array['class_staff_assignments','attendance_registers','attendance_entries','announcements','announcement_targets','announcement_reads'] loop
-  execute format('revoke all on table public.%I from anon, authenticated',t);
+  execute format('revoke all on table public.%I from anon, authenticated, public',t);
  end loop;
 end $schoolnest$;
 grant select, insert, update on table public.class_staff_assignments to authenticated;
@@ -1319,7 +1319,7 @@ create policy class_staff_admin_select on public.class_staff_assignments for sel
 create policy class_staff_admin_insert on public.class_staff_assignments for insert to authenticated with check(public.is_platform_super_admin() or public.has_school_role(school_id,array['school_owner','principal','head_teacher','school_admin']::text[]));
 create policy class_staff_admin_update on public.class_staff_assignments for update to authenticated using(public.is_platform_super_admin() or public.has_school_role(school_id,array['school_owner','principal','head_teacher','school_admin']::text[])) with check(public.is_platform_super_admin() or public.has_school_role(school_id,array['school_owner','principal','head_teacher','school_admin']::text[]));
 drop policy if exists class_staff_teacher_read on public.class_staff_assignments; create policy class_staff_teacher_read on public.class_staff_assignments for select to authenticated using(exists(select 1 from public.staff_profiles s where s.school_id=class_staff_assignments.school_id and s.id=class_staff_assignments.staff_profile_id and s.user_profile_id=auth.uid()));
-drop policy if exists attendance_register_access on public.attendance_registers; create policy attendance_register_access on public.attendance_registers for select to authenticated using(public.is_platform_super_admin() or public.has_school_role(school_id,array['school_owner','principal','head_teacher','school_admin']::text[]) or public.has_active_class_assignment(school_id,academic_session_id,class_id,arm_id));
+drop policy if exists attendance_register_staff_select on public.attendance_registers; create policy attendance_register_staff_select on public.attendance_registers for select to authenticated using(public.is_platform_super_admin() or public.has_school_role(school_id,array['school_owner','principal','head_teacher','school_admin']::text[]) or public.has_active_class_assignment(school_id,academic_session_id,class_id,arm_id));
 drop policy if exists attendance_register_manage on public.attendance_registers;
 drop policy if exists attendance_entries_staff on public.attendance_entries;
 drop policy if exists attendance_entries_staff_select on public.attendance_entries;
@@ -1356,7 +1356,7 @@ returns boolean language sql stable security definer set search_path=public,pg_t
  );
 $$;
 
-revoke all on function public.can_view_announcement(uuid) from public; grant execute on function public.can_view_announcement(uuid) to authenticated;
+revoke all on function public.can_view_announcement(uuid) from public; revoke all on function public.can_view_announcement(uuid) from anon; grant execute on function public.can_view_announcement(uuid) to authenticated;
 
 drop policy if exists announcements_member_read on public.announcements;
 drop policy if exists announcements_visible_read on public.announcements;
@@ -1370,13 +1370,16 @@ create policy attendance_register_parent_read on public.attendance_registers for
 
 create or replace function public.save_attendance_register(
  target_school_id uuid,target_session_id uuid,target_term_id uuid,target_class_id uuid,target_arm_id uuid,target_date date,entry_changes jsonb default '[]'::jsonb,submit_register boolean default false)
-returns jsonb language plpgsql security definer set search_path=public,pg_temp as $
-declare register_id uuid; is_admin boolean; unmarked integer; eligible_count integer; existing_count integer; added_count integer;
+returns jsonb language plpgsql security definer set search_path=public,pg_temp as $schoolnest$
+declare register_id uuid; is_admin boolean; unmarked integer; eligible_count integer; existing_snapshot_count integer; added_count integer; already_present_count integer; historical_preserved_count integer;
 begin
  if auth.uid() is null then raise exception 'Authentication required'; end if;
- if target_date>current_date then raise exception 'Future attendance dates are not allowed'; end if;
+ if not exists(select 1 from public.users_profile where id=auth.uid() and is_active) then raise exception 'An active authenticated profile is required'; end if;
+ if not public.is_platform_super_admin() and not public.is_school_member(target_school_id) then raise exception 'School membership is required'; end if;
+ if target_date is null or target_date>current_date then raise exception 'Future or missing attendance dates are not allowed'; end if;
  is_admin:=public.is_platform_super_admin() or public.has_school_role(target_school_id,array['school_owner','principal','head_teacher','school_admin']::text[]);
  if not is_admin and not public.has_active_class_assignment(target_school_id,target_session_id,target_class_id,target_arm_id) then raise exception 'Not authorized for this class'; end if;
+ if not exists(select 1 from public.academic_sessions where school_id=target_school_id and id=target_session_id) then raise exception 'Invalid academic session'; end if;
  if not exists(select 1 from public.terms where school_id=target_school_id and id=target_term_id and academic_session_id=target_session_id) then raise exception 'Invalid term and session'; end if;
  if not exists(select 1 from public.classes where school_id=target_school_id and id=target_class_id) then raise exception 'Invalid class'; end if;
  if target_arm_id is not null and not exists(select 1 from public.class_arms where school_id=target_school_id and id=target_arm_id and class_id=target_class_id) then raise exception 'Invalid class arm'; end if;
@@ -1384,8 +1387,10 @@ begin
  values(target_school_id,target_session_id,target_term_id,target_class_id,target_arm_id,target_date,auth.uid()) on conflict do nothing;
  select id into register_id from public.attendance_registers where school_id=target_school_id and academic_session_id=target_session_id and term_id=target_term_id and attendance_date=target_date and class_id=target_class_id and arm_id is not distinct from target_arm_id for update;
  if (select status from public.attendance_registers where id=register_id)<>'draft' then raise exception 'Only draft registers can be changed'; end if;
- select count(*) into existing_count from public.attendance_entries where attendance_register_id=register_id;
+ select count(*) into existing_snapshot_count from public.attendance_entries where attendance_register_id=register_id;
  select count(distinct e.student_id) into eligible_count from public.student_enrollments e join public.students st on st.school_id=e.school_id and st.id=e.student_id where e.school_id=target_school_id and e.academic_session_id=target_session_id and e.class_id=target_class_id and e.enrollment_status='active' and st.student_status='active' and (target_arm_id is null or e.arm_id=target_arm_id);
+ select count(distinct e.student_id) into already_present_count from public.student_enrollments e join public.students st on st.school_id=e.school_id and st.id=e.student_id join public.attendance_entries ae on ae.school_id=e.school_id and ae.student_id=e.student_id and ae.attendance_register_id=register_id where e.school_id=target_school_id and e.academic_session_id=target_session_id and e.class_id=target_class_id and e.enrollment_status='active' and st.student_status='active' and (target_arm_id is null or e.arm_id=target_arm_id);
+ select count(*) into historical_preserved_count from public.attendance_entries ae where ae.school_id=target_school_id and ae.attendance_register_id=register_id and not exists(select 1 from public.student_enrollments e join public.students st on st.school_id=e.school_id and st.id=e.student_id where e.school_id=target_school_id and e.student_id=ae.student_id and e.academic_session_id=target_session_id and e.class_id=target_class_id and e.enrollment_status='active' and st.student_status='active' and (target_arm_id is null or e.arm_id=target_arm_id));
  insert into public.attendance_entries(school_id,attendance_register_id,student_id)
  select target_school_id,register_id,e.student_id from public.student_enrollments e join public.students s on s.school_id=e.school_id and s.id=e.student_id
  where e.school_id=target_school_id and e.academic_session_id=target_session_id and e.class_id=target_class_id and e.enrollment_status='active' and s.student_status='active' and (target_arm_id is null or e.arm_id=target_arm_id)
@@ -1399,8 +1404,8 @@ begin
   update public.attendance_registers set status='submitted',submitted_by_user_profile_id=auth.uid(),submitted_at=now(),updated_at=now() where id=register_id;
   insert into public.audit_logs(school_id,actor_user_id,action,entity_type,entity_id,metadata) values(target_school_id,auth.uid(),'attendance.submitted','attendance_registers',register_id::text,jsonb_build_object('date',target_date));
  else update public.attendance_registers set updated_at=now() where id=register_id; end if;
- return jsonb_build_object('register_id',register_id,'eligible_count',eligible_count,'existing_count',existing_count,'added_count',added_count,'already_present_count',greatest(eligible_count-added_count,0),'historical_preserved_count',greatest(existing_count-(eligible_count-added_count),0));
-end $;
+ return jsonb_build_object('register_id',register_id,'eligible_count',eligible_count,'existing_snapshot_count',existing_snapshot_count,'added_count',added_count,'already_present_count',already_present_count,'historical_preserved_count',historical_preserved_count);
+end $schoolnest$;
 
 create or replace function public.transition_attendance_register(target_register_id uuid,target_status text,reason text default null)
 returns void language plpgsql security definer set search_path=public,pg_temp as $$
@@ -1413,8 +1418,8 @@ declare r public.attendance_registers; begin
  insert into public.audit_logs(school_id,actor_user_id,action,entity_type,entity_id,metadata) values(r.school_id,auth.uid(),'attendance.'||target_status,'attendance_registers',r.id::text,jsonb_build_object('previous_status',r.status,'reason',reason));
 end $$;
 revoke insert, update, delete on table public.attendance_registers from authenticated; revoke insert, update, delete on table public.attendance_entries from authenticated;
-revoke all on function public.save_attendance_register(uuid,uuid,uuid,uuid,uuid,date,jsonb,boolean) from public; grant execute on function public.save_attendance_register(uuid,uuid,uuid,uuid,uuid,date,jsonb,boolean) to authenticated;
-revoke all on function public.transition_attendance_register(uuid,text,text) from public; grant execute on function public.transition_attendance_register(uuid,text,text) to authenticated;
+revoke all on function public.save_attendance_register(uuid,uuid,uuid,uuid,uuid,date,jsonb,boolean) from public; revoke all on function public.save_attendance_register(uuid,uuid,uuid,uuid,uuid,date,jsonb,boolean) from anon; grant execute on function public.save_attendance_register(uuid,uuid,uuid,uuid,uuid,date,jsonb,boolean) to authenticated;
+revoke all on function public.transition_attendance_register(uuid,text,text) from public; revoke all on function public.transition_attendance_register(uuid,text,text) from anon; grant execute on function public.transition_attendance_register(uuid,text,text) to authenticated;
 drop policy if exists announcement_targets_manage on public.announcement_targets;
 drop policy if exists announcement_targets_manage_select on public.announcement_targets;
 drop policy if exists announcement_targets_manage_insert on public.announcement_targets;

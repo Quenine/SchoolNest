@@ -1,6 +1,6 @@
-﻿# Step 5 Acceptance
+# Step 5 Acceptance
 
-Use synthetic data only. Apply all migrations through Step 5.1, then run `database/verification/step-5-1-verification.sql` in the Supabase SQL editor. It must emit the Step 5.1 verification-passed notice without exceptions.
+Use synthetic data only. For an existing database where Step 5.1 succeeded, apply only Step 5.2, then run `database/verification/step-5-verification.sql` in the Supabase SQL editor. It must emit the Step 5.1 verification-passed notice without exceptions.
 
 ## Test setup
 
@@ -72,3 +72,14 @@ select school_id, announcement_id, user_profile_id from public.announcement_read
 ```
 
 Every returned `school_id` must equal the signed-in user’s authorized school. Parent and teacher result sets must also satisfy their linked-child, assignment and audience restrictions.
+
+## Step 5 closure migration order
+
+`database/schema.sql` is the canonical fresh-database schema and contains the final Step 5 state. For an existing database where Step 5.1 already succeeded, do not rerun or edit Step 5.1. Apply and validate in this order:
+
+1. Run `database/migrations/step-5-2-step5-closure.sql`.
+2. Run the read-only `database/verification/step-5-verification.sql`.
+3. Redeploy the application.
+4. Complete two-school, role, schedule, expiry, lock, and viewport acceptance checks.
+
+Step 5.2 changes the attendance save RPC to return JSONB, preserves the applied Step 5.1 history, installs operation-specific RLS and least-privilege grants, and keeps attendance table mutation RPC-only. No Results & Grading work is included.

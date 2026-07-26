@@ -57,7 +57,7 @@ Next step remains Attendance & Communication, but only after the stabilization c
 - Import history schema and security policy are ready; CSV processing UI remains to be completed before release.
 - Manual payment filtering/date checks and student add-on auto-fill are implemented.
 
-Next major product step remains: Step 5 � Attendance & Communication (after import processing completion).
+Next major product step remains: Step 5 � Attendance & Communication (after import processing completion).
 
 ## Completed stabilization continuation — July 2026
 
@@ -78,6 +78,17 @@ The next major product step remains Step 5 — Attendance & Communication. Apply
 - [ ] Validate 360px, 390px, 768px and desktop experiences with real assigned teachers and linked parents.
 - [ ] Next planned product step: Results & grading discovery and design. Do not implement until Step 5 manual acceptance passes.
 
-- [ ] Execute Step 5.1 and its verification SQL on the target Supabase database.
+- [ ] On the existing target database, execute Step 5.2 (do not rerun Step 5.1), then the final Step 5 verification SQL.
 - [ ] Complete every two-school, role, schedule, expiry, lock and viewport check in STEP_5_ACCEPTANCE.md.
 - [ ] Do not begin Results & Grading discovery until Step 5 acceptance is signed off.
+
+## Step 5 closure migration order
+
+`database/schema.sql` is the canonical fresh-database schema and contains the final Step 5 state. For an existing database where Step 5.1 already succeeded, do not rerun or edit Step 5.1. Apply and validate in this order:
+
+1. Run `database/migrations/step-5-2-step5-closure.sql`.
+2. Run the read-only `database/verification/step-5-verification.sql`.
+3. Redeploy the application.
+4. Complete two-school, role, schedule, expiry, lock, and viewport acceptance checks.
+
+Step 5.2 changes the attendance save RPC to return JSONB, preserves the applied Step 5.1 history, installs operation-specific RLS and least-privilege grants, and keeps attendance table mutation RPC-only. No Results & Grading work is included.

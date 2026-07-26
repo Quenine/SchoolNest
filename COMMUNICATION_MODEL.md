@@ -8,4 +8,15 @@ Scheduled announcements become visible at query time when `publish_at <= now()`.
 
 School scope cannot be mixed with narrower targets. Role and class scopes require one or more deduplicated targets; arm targets carry their parent class and are validated tenant-side. Teachers may target only active assigned classes/arms. Supported role targets exclude platform roles.
 
-“Estimated eligible audience” deduplicates qualifying profile IDs across targets. “In-app reads” counts read rows. “Estimated unread” is the non-negative difference; none of these metrics claims external delivery. Recipient feeds exclude announcements before schedule time and after expiry/archive, while management history retains them.
+ï¿½Estimated eligible audienceï¿½ deduplicates qualifying profile IDs across targets. ï¿½In-app readsï¿½ counts read rows. ï¿½Estimated unreadï¿½ is the non-negative difference; none of these metrics claims external delivery. Recipient feeds exclude announcements before schedule time and after expiry/archive, while management history retains them.
+
+## Step 5 closure migration order
+
+`database/schema.sql` is the canonical fresh-database schema and contains the final Step 5 state. For an existing database where Step 5.1 already succeeded, do not rerun or edit Step 5.1. Apply and validate in this order:
+
+1. Run `database/migrations/step-5-2-step5-closure.sql`.
+2. Run the read-only `database/verification/step-5-verification.sql`.
+3. Redeploy the application.
+4. Complete two-school, role, schedule, expiry, lock, and viewport acceptance checks.
+
+Step 5.2 changes the attendance save RPC to return JSONB, preserves the applied Step 5.1 history, installs operation-specific RLS and least-privilege grants, and keeps attendance table mutation RPC-only. No Results & Grading work is included.

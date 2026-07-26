@@ -19,18 +19,21 @@ async function sqlFiles(directory) {
 }
 
 const failures = [];
-const step5Path = path.resolve("database/migrations/step-5-1-attendance-and-communication.sql");
-const step5 = await readFile(step5Path, "utf8");
+const closurePath = path.resolve("database/migrations/step-5-2-step5-closure.sql");
+const closure = await readFile(closurePath, "utf8");
 for (const required of [
-  "security definer set search_path=public,pg_temp",
-  "auth.uid()",
+  "returns jsonb", "security definer", "set search_path = public, pg_temp", "auth.uid()",
+  "drop function public.save_attendance_register(uuid,uuid,uuid,uuid,uuid,date,jsonb,boolean)",
   "revoke all on function public.save_attendance_register",
   "grant select on table public.attendance_registers, public.attendance_entries",
+  "get diagnostics added_count = row_count", "'register_id'", "'eligible_count'",
+  "'existing_snapshot_count'", "'added_count'", "'already_present_count'", "'historical_preserved_count'",
 ]) {
-  if (!step5.toLowerCase().includes(required.toLowerCase())) failures.push(`${step5Path}: missing Step 5 security contract: ${required}`);
+  if (!closure.toLowerCase().includes(required.toLowerCase())) failures.push(`${closurePath}: missing Step 5 closure contract: ${required}`);
 }
-if (/for\s+all\s+to\s+authenticated/i.test(step5)) failures.push(`${step5Path}: broad FOR ALL authenticated policy is forbidden`);
-if (/create\s+policy[^;]+\bto\s+(anon|public)\b/is.test(step5)) failures.push(`${step5Path}: anonymous/public Step 5 policy is forbidden`);
+if (/create\s+policy[^;]+for\s+all\s+to\s+authenticated/is.test(closure)) failures.push(`${closurePath}: broad FOR ALL authenticated policy is forbidden`);
+if (/create\s+policy[^;]+\bto\s+(anon|public)\b/is.test(closure)) failures.push(`${closurePath}: anonymous/public Step 5 policy is forbidden`);
+if (/as\s+\$(?:\r?\n)|end\s+\$;/i.test(closure)) failures.push(`${closurePath}: malformed PostgreSQL dollar delimiter`);
 for (const file of await sqlFiles(path.resolve("database"))) {
   const source = await readFile(file, "utf8");
   for (const token of forbidden) {
