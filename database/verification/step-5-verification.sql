@@ -93,6 +93,48 @@ begin
   if not exists(select 1 from pg_policies where schemaname='public' and policyname='attendance_register_parent_read' and qual like '%student_guardians%' and qual like '%parent_guardians%' and qual like '%auth.uid()%') then failures := array_append(failures,'parent attendance read is not linked-child-only'); end if;
   if not exists(select 1 from pg_policies where schemaname='public' and policyname='attendance_register_staff_select' and qual like '%has_active_class_assignment%') then failures := array_append(failures,'teacher attendance read does not require explicit assignment'); end if;
 
+  if not exists(
+    select 1 from pg_policies
+    where schemaname='public' and tablename='announcements' and policyname='announcements_manage_insert'
+      and with_check like '%users_profile%' and with_check like '%staff_profiles%'
+      and with_check like '%class_staff_assignments%' and with_check like '%employment_status%'
+      and with_check like '%starts_on%' and with_check like '%ends_on%'
+  ) then failures := array_append(failures,'announcement insert does not require active staff and a currently effective class assignment'); end if;
+
+  if exists(
+    select 1 from pg_policies
+    where schemaname='public' and tablename='announcements' and policyname='announcements_manage_insert'
+      and with_check like '%is_school_member%'
+  ) then failures := array_append(failures,'class-announcement insert still relies on is_school_member'); end if;
+
+  if not exists(
+    select 1 from pg_policies
+    where schemaname='public' and tablename='announcements' and policyname='announcements_manage_update'
+      and qual like '%created_by_user_profile_id%' and qual like '%audience_scope%'
+      and qual like '%users_profile%' and qual like '%class_staff_assignments%'
+      and with_check like '%created_by_user_profile_id%' and with_check like '%audience_scope%'
+      and with_check like '%up.school_id = announcements.school_id%'
+      and with_check like '%employment_status%' and with_check like '%starts_on%' and with_check like '%ends_on%'
+  ) then failures := array_append(failures,'announcement update does not enforce same-school active staff assignment for non-admin authors'); end if;
+
+  if not exists(
+    select 1 from pg_policies
+    where schemaname='public' and tablename='announcement_targets' and policyname='announcement_targets_manage_update'
+      and qual like '%class_staff_assignments%' and qual like '%class_id%'
+      and qual like '%arm_id%' and qual like '%employment_status%'
+      and with_check like '%class_staff_assignments%' and with_check like '%class_id%'
+      and with_check like '%arm_id%' and with_check like '%employment_status%'
+  ) then failures := array_append(failures,'announcement target update is not assignment-scoped in USING and WITH CHECK'); end if;
+
+  if not exists(
+    select 1 from pg_proc p
+    where p.oid=to_regprocedure('public.can_view_announcement(uuid)')
+      and pg_get_functiondef(p.oid) like '%academic_sessions%'
+      and pg_get_functiondef(p.oid) like '%is_current = true%'
+      and pg_get_functiondef(p.oid) like '%academic_session_id%'
+      and pg_get_functiondef(p.oid) like '%enrollment_status = ''active''%'
+      and pg_get_functiondef(p.oid) like '%parent_guardians%'
+  ) then failures := array_append(failures,'parent class-announcement visibility is not scoped to active current-session enrollment'); end if;
   if cardinality(failures)>0 then
     raise exception 'Step 5 verification failed:%', E'\n- ' || array_to_string(failures,E'\n- ');
   end if;

@@ -36,4 +36,57 @@ describe('Step 5 database contract',()=>{
     expect(closure).toContain('grant select on table public.attendance_registers, public.attendance_entries to authenticated');
     expect(closure).toContain('revoke all on function public.save_attendance_register');
   });
-});
+
+  it('requires active assigned staff for non-admin announcement insert and update',()=>{
+    for(const path of [closurePath,schemaPath]){
+      const sql=read(path).toLowerCase();
+      const insert=policy(sql,'announcements_manage_insert');
+      const update=policy(sql,'announcements_manage_update');
+      for(const definition of [insert,update]){
+        expect(definition).toContain('users_profile');
+        expect(definition).toContain('staff_profiles');
+        expect(definition).toContain("employment_status = 'active'");
+        expect(definition).toContain('class_staff_assignments');
+        expect(definition).toContain('starts_on');
+        expect(definition).toContain('ends_on');
+      }
+      expect(insert).not.toContain('is_school_member');
+      expect(update).toContain('up.school_id = announcements.school_id');
+      expect(update).toContain('created_by_user_profile_id = auth.uid()');
+      expect(update).toContain("audience_scope = 'classes'");
+    }
+  });
+
+  it('keeps target updates within the teacher class or arm assignment',()=>{
+    for(const path of [closurePath,schemaPath]){
+      const update=policy(read(path).toLowerCase(),'announcement_targets_manage_update');
+      expect((update.match(/class_staff_assignments/g)??[]).length).toBeGreaterThanOrEqual(2);
+      expect(update).toContain('csa.class_id = announcement_targets.class_id');
+      expect(update).toContain('csa.arm_id is null or csa.arm_id is not distinct from announcement_targets.arm_id');
+      expect(update).toContain("sp.employment_status = 'active'");
+      expect(update).toContain('a.school_id = announcement_targets.school_id');
+    }
+  });
+
+  it('limits parent class visibility to active enrollment in the tenant current session',()=>{
+    for(const path of [closurePath,schemaPath]){
+      const sql=read(path).toLowerCase();
+      const start=sql.indexOf('create or replace function public.can_view_announcement');
+      const end=sql.indexOf('alter table public.class_staff_assignments',start);
+      const definition=sql.slice(start,end);
+      expect(definition).toContain('academic_sessions current_session');
+      expect(definition).toContain('current_session.school_id = se.school_id');
+      expect(definition).toContain('current_session.id = se.academic_session_id');
+      expect(definition).toContain('current_session.is_current = true');
+      expect(definition).toContain("se.enrollment_status = 'active'");
+      expect(definition).toContain('pg.user_profile_id = auth.uid()');
+    }
+  });});
+
+function policy(sql:string,name:string){
+  const start=sql.indexOf(`create policy ${name}`);
+  expect(start).toBeGreaterThanOrEqual(0);
+  const candidates=[sql.indexOf('create policy ',start+14),sql.indexOf('drop policy ',start+14)].filter(index=>index>start);
+  const end=candidates.length?Math.min(...candidates):sql.length;
+  return sql.slice(start,end);
+}

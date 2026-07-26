@@ -177,6 +177,10 @@ as $schoolnest$
                   join public.student_enrollments se
                     on se.school_id = sg.school_id
                    and se.student_id = sg.student_id
+                  join public.academic_sessions current_session
+                    on current_session.school_id = se.school_id
+                   and current_session.id = se.academic_session_id
+                   and current_session.is_current = true
                   where pg.school_id = a.school_id
                     and pg.user_profile_id = auth.uid()
                     and se.enrollment_status = 'active'
@@ -297,19 +301,53 @@ create policy announcements_manage_insert on public.announcements for insert to 
     and (
       public.is_platform_super_admin()
       or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']::text[])
-      or (audience_scope = 'classes' and public.is_school_member(school_id))
+      or (
+        audience_scope = 'classes'
+        and exists (
+          select 1
+          from public.users_profile up
+          join public.staff_profiles sp on sp.school_id = up.school_id and sp.user_profile_id = up.id and sp.employment_status = 'active'
+          join public.class_staff_assignments csa on csa.school_id = sp.school_id and csa.staff_profile_id = sp.id
+          where up.id = auth.uid() and up.school_id = announcements.school_id and up.is_active
+            and csa.is_active
+            and (csa.starts_on is null or csa.starts_on <= current_date)
+            and (csa.ends_on is null or csa.ends_on >= current_date)
+        )
+      )
     )
   );
 create policy announcements_manage_update on public.announcements for update to authenticated
   using (
     public.is_platform_super_admin()
     or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']::text[])
-    or created_by_user_profile_id = auth.uid()
+    or (
+      created_by_user_profile_id = auth.uid() and audience_scope = 'classes'
+      and exists (
+        select 1 from public.users_profile up
+        join public.staff_profiles sp on sp.school_id = up.school_id and sp.user_profile_id = up.id and sp.employment_status = 'active'
+        join public.class_staff_assignments csa on csa.school_id = sp.school_id and csa.staff_profile_id = sp.id
+        where up.id = auth.uid() and up.school_id = announcements.school_id and up.is_active
+          and csa.is_active
+          and (csa.starts_on is null or csa.starts_on <= current_date)
+          and (csa.ends_on is null or csa.ends_on >= current_date)
+      )
+    )
   )
   with check (
     public.is_platform_super_admin()
     or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']::text[])
-    or (created_by_user_profile_id = auth.uid() and audience_scope = 'classes')
+    or (
+      created_by_user_profile_id = auth.uid() and audience_scope = 'classes'
+      and exists (
+        select 1 from public.users_profile up
+        join public.staff_profiles sp on sp.school_id = up.school_id and sp.user_profile_id = up.id and sp.employment_status = 'active'
+        join public.class_staff_assignments csa on csa.school_id = sp.school_id and csa.staff_profile_id = sp.id
+        where up.id = auth.uid() and up.school_id = announcements.school_id and up.is_active
+          and csa.is_active
+          and (csa.starts_on is null or csa.starts_on <= current_date)
+          and (csa.ends_on is null or csa.ends_on >= current_date)
+      )
+    )
   );
 
 drop policy if exists announcement_targets_member_read on public.announcement_targets;
@@ -370,7 +408,23 @@ create policy announcement_targets_manage_update on public.announcement_targets 
       and (
         public.is_platform_super_admin()
         or public.has_school_role(a.school_id, array['school_owner','principal','head_teacher','school_admin']::text[])
-        or a.created_by_user_profile_id = auth.uid()
+        or (
+          a.created_by_user_profile_id = auth.uid()
+          and a.audience_scope = 'classes'
+          and announcement_targets.target_type in ('class','arm')
+          and exists (
+            select 1 from public.class_staff_assignments csa
+            join public.staff_profiles sp on sp.school_id = csa.school_id and sp.id = csa.staff_profile_id
+            where csa.school_id = a.school_id
+              and csa.class_id = announcement_targets.class_id
+              and (csa.arm_id is null or csa.arm_id is not distinct from announcement_targets.arm_id)
+              and csa.is_active
+              and (csa.starts_on is null or csa.starts_on <= current_date)
+              and (csa.ends_on is null or csa.ends_on >= current_date)
+              and sp.user_profile_id = auth.uid()
+              and sp.employment_status = 'active'
+          )
+        )
       )
   ))
   with check (exists (
@@ -380,10 +434,25 @@ create policy announcement_targets_manage_update on public.announcement_targets 
       and (
         public.is_platform_super_admin()
         or public.has_school_role(a.school_id, array['school_owner','principal','head_teacher','school_admin']::text[])
-        or (a.created_by_user_profile_id = auth.uid() and a.audience_scope = 'classes')
+        or (
+          a.created_by_user_profile_id = auth.uid()
+          and a.audience_scope = 'classes'
+          and announcement_targets.target_type in ('class','arm')
+          and exists (
+            select 1 from public.class_staff_assignments csa
+            join public.staff_profiles sp on sp.school_id = csa.school_id and sp.id = csa.staff_profile_id
+            where csa.school_id = a.school_id
+              and csa.class_id = announcement_targets.class_id
+              and (csa.arm_id is null or csa.arm_id is not distinct from announcement_targets.arm_id)
+              and csa.is_active
+              and (csa.starts_on is null or csa.starts_on <= current_date)
+              and (csa.ends_on is null or csa.ends_on >= current_date)
+              and sp.user_profile_id = auth.uid()
+              and sp.employment_status = 'active'
+          )
+        )
       )
   ));
-
 drop policy if exists announcement_reads_self on public.announcement_reads;
 drop policy if exists announcement_reads_self_insert on public.announcement_reads;
 drop policy if exists announcement_reads_self_update on public.announcement_reads;

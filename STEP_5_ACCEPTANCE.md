@@ -1,6 +1,6 @@
 # Step 5 Acceptance
 
-Use synthetic data only. For an existing database where Step 5.1 succeeded, apply only Step 5.2, then run `database/verification/step-5-verification.sql` in the Supabase SQL editor. It must emit the Step 5.1 verification-passed notice without exceptions.
+Use synthetic data only. For an existing database where Step 5.1 succeeded, apply only Step 5.2, then run `database/verification/step-5-verification.sql` in the Supabase SQL editor. It must emit the Step 5 verification-passed notice without exceptions.
 
 ## Test setup
 

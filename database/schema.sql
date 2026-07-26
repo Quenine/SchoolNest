@@ -1332,8 +1332,61 @@ drop policy if exists announcements_manage_select on public.announcements;
 drop policy if exists announcements_manage_insert on public.announcements;
 drop policy if exists announcements_manage_update on public.announcements;
 create policy announcements_manage_select on public.announcements for select to authenticated using(public.is_platform_super_admin() or public.has_school_role(school_id,array['school_owner','principal','head_teacher','school_admin']::text[]) or created_by_user_profile_id=auth.uid());
-create policy announcements_manage_insert on public.announcements for insert to authenticated with check(public.is_platform_super_admin() or public.has_school_role(school_id,array['school_owner','principal','head_teacher','school_admin']::text[]) or (created_by_user_profile_id=auth.uid() and audience_scope='classes'));
-create policy announcements_manage_update on public.announcements for update to authenticated using(public.is_platform_super_admin() or public.has_school_role(school_id,array['school_owner','principal','head_teacher','school_admin']::text[]) or created_by_user_profile_id=auth.uid()) with check(public.is_platform_super_admin() or public.has_school_role(school_id,array['school_owner','principal','head_teacher','school_admin']::text[]) or (created_by_user_profile_id=auth.uid() and audience_scope='classes'));
+create policy announcements_manage_insert on public.announcements for insert to authenticated
+  with check (
+    created_by_user_profile_id = auth.uid()
+    and (
+      public.is_platform_super_admin()
+      or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']::text[])
+      or (
+        audience_scope = 'classes'
+        and exists (
+          select 1
+          from public.users_profile up
+          join public.staff_profiles sp on sp.school_id = up.school_id and sp.user_profile_id = up.id and sp.employment_status = 'active'
+          join public.class_staff_assignments csa on csa.school_id = sp.school_id and csa.staff_profile_id = sp.id
+          where up.id = auth.uid() and up.school_id = announcements.school_id and up.is_active
+            and csa.is_active
+            and (csa.starts_on is null or csa.starts_on <= current_date)
+            and (csa.ends_on is null or csa.ends_on >= current_date)
+        )
+      )
+    )
+  );
+create policy announcements_manage_update on public.announcements for update to authenticated
+  using (
+    public.is_platform_super_admin()
+    or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']::text[])
+    or (
+      created_by_user_profile_id = auth.uid() and audience_scope = 'classes'
+      and exists (
+        select 1 from public.users_profile up
+        join public.staff_profiles sp on sp.school_id = up.school_id and sp.user_profile_id = up.id and sp.employment_status = 'active'
+        join public.class_staff_assignments csa on csa.school_id = sp.school_id and csa.staff_profile_id = sp.id
+        where up.id = auth.uid() and up.school_id = announcements.school_id and up.is_active
+          and csa.is_active
+          and (csa.starts_on is null or csa.starts_on <= current_date)
+          and (csa.ends_on is null or csa.ends_on >= current_date)
+      )
+    )
+  )
+  with check (
+    public.is_platform_super_admin()
+    or public.has_school_role(school_id, array['school_owner','principal','head_teacher','school_admin']::text[])
+    or (
+      created_by_user_profile_id = auth.uid() and audience_scope = 'classes'
+      and exists (
+        select 1 from public.users_profile up
+        join public.staff_profiles sp on sp.school_id = up.school_id and sp.user_profile_id = up.id and sp.employment_status = 'active'
+        join public.class_staff_assignments csa on csa.school_id = sp.school_id and csa.staff_profile_id = sp.id
+        where up.id = auth.uid() and up.school_id = announcements.school_id and up.is_active
+          and csa.is_active
+          and (csa.starts_on is null or csa.starts_on <= current_date)
+          and (csa.ends_on is null or csa.ends_on >= current_date)
+      )
+    )
+  );
+
 drop policy if exists announcement_targets_member_read on public.announcement_targets;
 drop policy if exists announcement_targets_manage on public.announcement_targets;
 drop policy if exists announcement_reads_self on public.announcement_reads; create policy announcement_reads_self on public.announcement_reads for select to authenticated using(user_profile_id=auth.uid() or public.has_school_role(school_id,array['school_owner','principal','head_teacher','school_admin']::text[]));
@@ -1341,20 +1394,90 @@ drop policy if exists announcement_reads_self_insert on public.announcement_read
 drop policy if exists announcement_reads_self_update on public.announcement_reads; create policy announcement_reads_self_update on public.announcement_reads for update to authenticated using(user_profile_id=auth.uid()) with check(user_profile_id=auth.uid());
 
 create or replace function public.can_view_announcement(target_announcement_id uuid)
-returns boolean language sql stable security definer set search_path=public,pg_temp as $$
- select auth.uid() is not null and exists(
-  select 1 from public.announcements a where a.id=target_announcement_id
-   and a.status in ('published','scheduled') and coalesce(a.publish_at,a.published_at,a.created_at)<=now() and (a.expires_at is null or a.expires_at>now()) and a.archived_at is null
-   and (public.is_platform_super_admin() or public.has_school_role(a.school_id,array['school_owner','principal','head_teacher','school_admin']::text[]) or
-    (a.audience_scope='school' and public.is_school_member(a.school_id)) or
-    (a.audience_scope='roles' and exists(select 1 from public.announcement_targets t join public.roles r on r.code=t.target_role join public.user_roles ur on ur.role_id=r.id and ur.school_id=a.school_id and ur.user_id=auth.uid() where t.announcement_id=a.id and t.target_type='role')) or
-    (a.audience_scope='classes' and exists(select 1 from public.announcement_targets t where t.announcement_id=a.id and t.target_type in ('class','arm') and (
-      exists(select 1 from public.class_staff_assignments ca join public.staff_profiles sp on sp.id=ca.staff_profile_id and sp.school_id=ca.school_id where ca.school_id=a.school_id and ca.class_id=t.class_id and (t.arm_id is null or ca.arm_id is null or ca.arm_id=t.arm_id) and ca.is_active and sp.user_profile_id=auth.uid()) or
-      exists(select 1 from public.parent_guardians pg join public.student_guardians sg on sg.school_id=pg.school_id and sg.guardian_id=pg.id join public.student_enrollments e on e.school_id=sg.school_id and e.student_id=sg.student_id where pg.school_id=a.school_id and pg.user_profile_id=auth.uid() and e.enrollment_status='active' and e.class_id=t.class_id and (t.arm_id is null or e.arm_id=t.arm_id))
-    )))
-   )
- );
-$$;
+returns boolean
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $schoolnest$
+  select auth.uid() is not null and exists (
+    select 1
+    from public.announcements a
+    where a.id = target_announcement_id
+      and a.status in ('published', 'scheduled')
+      and coalesce(a.publish_at, a.published_at, a.created_at) <= now()
+      and (a.expires_at is null or a.expires_at > now())
+      and a.archived_at is null
+      and (
+        public.is_platform_super_admin()
+        or public.has_school_role(a.school_id, array['school_owner','principal','head_teacher','school_admin']::text[])
+        or (a.audience_scope = 'school' and public.is_school_member(a.school_id))
+        or (
+          a.audience_scope = 'roles'
+          and exists (
+            select 1
+            from public.announcement_targets at
+            join public.roles r on r.code = at.target_role
+            join public.user_roles ur
+              on ur.role_id = r.id
+             and ur.school_id = a.school_id
+             and ur.user_id = auth.uid()
+            where at.school_id = a.school_id
+              and at.announcement_id = a.id
+              and at.target_type = 'role'
+          )
+        )
+        or (
+          a.audience_scope = 'classes'
+          and exists (
+            select 1
+            from public.announcement_targets at
+            where at.school_id = a.school_id
+              and at.announcement_id = a.id
+              and at.target_type in ('class','arm')
+              and (
+                public.has_active_class_assignment(a.school_id, (
+                  select csa.academic_session_id
+                  from public.class_staff_assignments csa
+                  join public.staff_profiles sp
+                    on sp.school_id = csa.school_id
+                   and sp.id = csa.staff_profile_id
+                  where csa.school_id = a.school_id
+                    and csa.class_id = at.class_id
+                    and sp.user_profile_id = auth.uid()
+                    and sp.employment_status = 'active'
+                    and csa.is_active
+                    and (csa.starts_on is null or csa.starts_on <= current_date)
+                    and (csa.ends_on is null or csa.ends_on >= current_date)
+                    and (csa.arm_id is null or csa.arm_id is not distinct from at.arm_id)
+                  order by csa.created_at desc
+                  limit 1
+                ), at.class_id, at.arm_id)
+                or exists (
+                  select 1
+                  from public.parent_guardians pg
+                  join public.student_guardians sg
+                    on sg.school_id = pg.school_id
+                   and sg.guardian_id = pg.id
+                  join public.student_enrollments se
+                    on se.school_id = sg.school_id
+                   and se.student_id = sg.student_id
+                  join public.academic_sessions current_session
+                    on current_session.school_id = se.school_id
+                   and current_session.id = se.academic_session_id
+                   and current_session.is_current = true
+                  where pg.school_id = a.school_id
+                    and pg.user_profile_id = auth.uid()
+                    and se.enrollment_status = 'active'
+                    and se.class_id = at.class_id
+                    and (at.arm_id is null or se.arm_id = at.arm_id)
+                )
+              )
+          )
+        )
+      )
+  );
+$schoolnest$;
 
 revoke all on function public.can_view_announcement(uuid) from public; revoke all on function public.can_view_announcement(uuid) from anon; grant execute on function public.can_view_announcement(uuid) to authenticated;
 
@@ -1427,13 +1550,85 @@ drop policy if exists announcement_targets_manage_update on public.announcement_
 create policy announcement_targets_manage_select on public.announcement_targets for select to authenticated
  using(exists(select 1 from public.announcements a where a.school_id=announcement_targets.school_id and a.id=announcement_targets.announcement_id and (public.is_platform_super_admin() or public.has_school_role(a.school_id,array['school_owner','principal','head_teacher','school_admin']::text[]) or a.created_by_user_profile_id=auth.uid())));
 create policy announcement_targets_manage_insert on public.announcement_targets for insert to authenticated
- with check(exists(select 1 from public.announcements a where a.school_id=announcement_targets.school_id and a.id=announcement_targets.announcement_id and (
-  public.is_platform_super_admin() or public.has_school_role(a.school_id,array['school_owner','principal','head_teacher','school_admin']::text[]) or
-  (a.created_by_user_profile_id=auth.uid() and a.audience_scope='classes' and announcement_targets.target_type in ('class','arm') and exists(select 1 from public.class_staff_assignments ca join public.staff_profiles sp on sp.id=ca.staff_profile_id and sp.school_id=ca.school_id where ca.school_id=a.school_id and ca.class_id=announcement_targets.class_id and (announcement_targets.arm_id is null or ca.arm_id is null or ca.arm_id=announcement_targets.arm_id) and ca.is_active and sp.user_profile_id=auth.uid()))
- )));
+  with check (exists (
+    select 1
+    from public.announcements a
+    where a.school_id = announcement_targets.school_id
+      and a.id = announcement_targets.announcement_id
+      and (
+        public.is_platform_super_admin()
+        or public.has_school_role(a.school_id, array['school_owner','principal','head_teacher','school_admin']::text[])
+        or (
+          a.created_by_user_profile_id = auth.uid()
+          and a.audience_scope = 'classes'
+          and announcement_targets.target_type in ('class','arm')
+          and exists (
+            select 1
+            from public.class_staff_assignments csa
+            join public.staff_profiles sp
+              on sp.school_id = csa.school_id and sp.id = csa.staff_profile_id
+            where csa.school_id = a.school_id
+              and csa.class_id = announcement_targets.class_id
+              and (csa.arm_id is null or csa.arm_id is not distinct from announcement_targets.arm_id)
+              and csa.is_active
+              and (csa.starts_on is null or csa.starts_on <= current_date)
+              and (csa.ends_on is null or csa.ends_on >= current_date)
+              and sp.user_profile_id = auth.uid()
+              and sp.employment_status = 'active'
+          )
+        )
+      )
+  ));
 create policy announcement_targets_manage_update on public.announcement_targets for update to authenticated
- using(exists(select 1 from public.announcements a where a.school_id=announcement_targets.school_id and a.id=announcement_targets.announcement_id and (public.is_platform_super_admin() or public.has_school_role(a.school_id,array['school_owner','principal','head_teacher','school_admin']::text[]) or a.created_by_user_profile_id=auth.uid())))
- with check(exists(select 1 from public.announcements a where a.school_id=announcement_targets.school_id and a.id=announcement_targets.announcement_id and (
-  public.is_platform_super_admin() or public.has_school_role(a.school_id,array['school_owner','principal','head_teacher','school_admin']::text[]) or
-  (a.created_by_user_profile_id=auth.uid() and a.audience_scope='classes' and announcement_targets.target_type in ('class','arm') and exists(select 1 from public.class_staff_assignments ca join public.staff_profiles sp on sp.id=ca.staff_profile_id and sp.school_id=ca.school_id where ca.school_id=a.school_id and ca.class_id=announcement_targets.class_id and (announcement_targets.arm_id is null or ca.arm_id is null or ca.arm_id=announcement_targets.arm_id) and ca.is_active and sp.user_profile_id=auth.uid()))
- )));
+  using (exists (
+    select 1 from public.announcements a
+    where a.school_id = announcement_targets.school_id
+      and a.id = announcement_targets.announcement_id
+      and (
+        public.is_platform_super_admin()
+        or public.has_school_role(a.school_id, array['school_owner','principal','head_teacher','school_admin']::text[])
+        or (
+          a.created_by_user_profile_id = auth.uid()
+          and a.audience_scope = 'classes'
+          and announcement_targets.target_type in ('class','arm')
+          and exists (
+            select 1 from public.class_staff_assignments csa
+            join public.staff_profiles sp on sp.school_id = csa.school_id and sp.id = csa.staff_profile_id
+            where csa.school_id = a.school_id
+              and csa.class_id = announcement_targets.class_id
+              and (csa.arm_id is null or csa.arm_id is not distinct from announcement_targets.arm_id)
+              and csa.is_active
+              and (csa.starts_on is null or csa.starts_on <= current_date)
+              and (csa.ends_on is null or csa.ends_on >= current_date)
+              and sp.user_profile_id = auth.uid()
+              and sp.employment_status = 'active'
+          )
+        )
+      )
+  ))
+  with check (exists (
+    select 1 from public.announcements a
+    where a.school_id = announcement_targets.school_id
+      and a.id = announcement_targets.announcement_id
+      and (
+        public.is_platform_super_admin()
+        or public.has_school_role(a.school_id, array['school_owner','principal','head_teacher','school_admin']::text[])
+        or (
+          a.created_by_user_profile_id = auth.uid()
+          and a.audience_scope = 'classes'
+          and announcement_targets.target_type in ('class','arm')
+          and exists (
+            select 1 from public.class_staff_assignments csa
+            join public.staff_profiles sp on sp.school_id = csa.school_id and sp.id = csa.staff_profile_id
+            where csa.school_id = a.school_id
+              and csa.class_id = announcement_targets.class_id
+              and (csa.arm_id is null or csa.arm_id is not distinct from announcement_targets.arm_id)
+              and csa.is_active
+              and (csa.starts_on is null or csa.starts_on <= current_date)
+              and (csa.ends_on is null or csa.ends_on >= current_date)
+              and sp.user_profile_id = auth.uid()
+              and sp.employment_status = 'active'
+          )
+        )
+      )
+  ));
