@@ -108,6 +108,39 @@ as $schoolnest$
     );
 $schoolnest$;
 
+create or replace function public.can_parent_view_attendance_register(
+  target_school_id uuid,
+  target_register_id uuid
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $schoolnest$
+  select auth.uid() is not null
+    and exists (
+      select 1
+      from public.attendance_registers ar
+      join public.attendance_entries ae
+        on ae.school_id = ar.school_id
+       and ae.attendance_register_id = ar.id
+      join public.student_guardians sg
+        on sg.school_id = ae.school_id
+       and sg.student_id = ae.student_id
+      join public.parent_guardians pg
+        on pg.school_id = sg.school_id
+       and pg.id = sg.guardian_id
+      where ar.school_id = target_school_id
+        and ar.id = target_register_id
+        and pg.user_profile_id = auth.uid()
+    );
+$schoolnest$;
+
+revoke all on function public.can_parent_view_attendance_register(uuid,uuid) from public;
+revoke all on function public.can_parent_view_attendance_register(uuid,uuid) from anon;
+grant execute on function public.can_parent_view_attendance_register(uuid,uuid) to authenticated;
+
 create or replace function public.can_view_announcement(target_announcement_id uuid)
 returns boolean
 language sql
@@ -249,17 +282,7 @@ create policy attendance_register_staff_select on public.attendance_registers fo
     or public.has_active_class_assignment(school_id, academic_session_id, class_id, arm_id)
   );
 create policy attendance_register_parent_read on public.attendance_registers for select to authenticated
-  using (exists (
-    select 1
-    from public.attendance_entries ae
-    join public.student_guardians sg
-      on sg.school_id = ae.school_id and sg.student_id = ae.student_id
-    join public.parent_guardians pg
-      on pg.school_id = sg.school_id and pg.id = sg.guardian_id
-    where ae.school_id = attendance_registers.school_id
-      and ae.attendance_register_id = attendance_registers.id
-      and pg.user_profile_id = auth.uid()
-  ));
+  using (public.can_parent_view_attendance_register(school_id, id));
 
 drop policy if exists attendance_entries_staff on public.attendance_entries;
 drop policy if exists attendance_entries_staff_select on public.attendance_entries;

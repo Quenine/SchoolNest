@@ -62,10 +62,21 @@ begin
     if not coalesce(proc_record.proconfig,'{}'::text[]) @> array['search_path=public,pg_temp'] and not coalesce(proc_record.proconfig,'{}'::text[]) @> array['search_path=public, pg_temp'] then failures := array_append(failures,'transition_attendance_register search_path is not fixed'); end if;
   end if;
 
+  select p.prosecdef, p.proconfig
+  into proc_record
+  from pg_proc p
+  where p.oid=to_regprocedure('public.can_parent_view_attendance_register(uuid,uuid)');
+  if not found then failures := array_append(failures,'missing can_parent_view_attendance_register exact signature');
+  else
+    if not proc_record.prosecdef then failures := array_append(failures,'can_parent_view_attendance_register is not SECURITY DEFINER'); end if;
+    if not coalesce(proc_record.proconfig,'{}'::text[]) @> array['search_path=public,pg_temp'] and not coalesce(proc_record.proconfig,'{}'::text[]) @> array['search_path=public, pg_temp'] then failures := array_append(failures,'can_parent_view_attendance_register search_path is not fixed'); end if;
+  end if;
+
   foreach item in array array[
     'public.save_attendance_register(uuid,uuid,uuid,uuid,uuid,date,jsonb,boolean)',
     'public.transition_attendance_register(uuid,text,text)',
     'public.has_active_class_assignment(uuid,uuid,uuid,uuid)',
+    'public.can_parent_view_attendance_register(uuid,uuid)',
     'public.can_view_announcement(uuid)'
   ] loop
     if to_regprocedure(item) is null then failures := array_append(failures,'missing function ' || item);
@@ -94,7 +105,11 @@ begin
   if not exists(select 1 from pg_policies where schemaname='public' and tablename='announcement_reads' and policyname='announcement_reads_self_select' and cmd='SELECT' and qual like '%user_profile_id = auth.uid()%' and qual not like '%is_school_member%') then failures := array_append(failures,'ordinary announcement read SELECT is not self-scoped'); end if;
   if not exists(select 1 from pg_policies where schemaname='public' and tablename='announcement_reads' and policyname='announcement_reads_self_insert' and cmd='INSERT' and with_check like '%user_profile_id = auth.uid()%') then failures := array_append(failures,'announcement read insert is not self-scoped'); end if;
   if not exists(select 1 from pg_policies where schemaname='public' and tablename='announcement_reads' and policyname='announcement_reads_self_update' and cmd='UPDATE' and qual like '%user_profile_id = auth.uid()%' and with_check like '%user_profile_id = auth.uid()%') then failures := array_append(failures,'announcement read update is not self-scoped'); end if;
-  if not exists(select 1 from pg_policies where schemaname='public' and policyname='attendance_register_parent_read' and qual like '%student_guardians%' and qual like '%parent_guardians%' and qual like '%auth.uid()%') then failures := array_append(failures,'parent attendance read is not linked-child-only'); end if;
+  if not exists(select 1 from pg_policies where schemaname='public' and tablename='attendance_registers' and policyname='attendance_register_parent_read' and qual like '%can_parent_view_attendance_register(school_id, id)%') then failures := array_append(failures,'parent attendance register read does not call the recursion-safe helper'); end if;
+  if exists(select 1 from pg_policies where schemaname='public' and tablename='attendance_registers' and qual like '%attendance_entries%') then failures := array_append(failures,'an attendance register policy directly queries attendance_entries'); end if;
+  if exists(select 1 from pg_policies register_policy join pg_policies entry_policy on entry_policy.schemaname=register_policy.schemaname where register_policy.schemaname='public' and register_policy.tablename='attendance_registers' and entry_policy.tablename='attendance_entries' and register_policy.qual like '%attendance_entries%' and entry_policy.qual like '%attendance_registers%') then failures := array_append(failures,'attendance register and entry policies contain a mutual direct-reference cycle'); end if;
+  if not exists(select 1 from pg_proc p where p.oid=to_regprocedure('public.can_parent_view_attendance_register(uuid,uuid)') and pg_get_functiondef(p.oid) like '%auth.uid() is not null%' and pg_get_functiondef(p.oid) like '%ar.school_id = target_school_id%' and pg_get_functiondef(p.oid) like '%ar.id = target_register_id%' and pg_get_functiondef(p.oid) like '%ae.school_id = ar.school_id%' and pg_get_functiondef(p.oid) like '%ae.attendance_register_id = ar.id%' and pg_get_functiondef(p.oid) like '%sg.school_id = ae.school_id%' and pg_get_functiondef(p.oid) like '%pg.school_id = sg.school_id%' and pg_get_functiondef(p.oid) like '%pg.user_profile_id = auth.uid()%') then failures := array_append(failures,'parent attendance register helper is not tenant-safe and linked-child-only'); end if;
+  if not exists(select 1 from pg_policies where schemaname='public' and tablename='attendance_entries' and policyname='attendance_entries_parent_read' and qual like '%student_guardians%' and qual like '%parent_guardians%' and qual like '%user_profile_id = auth.uid()%') then failures := array_append(failures,'parent attendance entry read is not linked-student-only'); end if;
   if not exists(select 1 from pg_policies where schemaname='public' and policyname='attendance_register_staff_select' and qual like '%has_active_class_assignment%') then failures := array_append(failures,'teacher attendance read does not require explicit assignment'); end if;
 
   if not exists(

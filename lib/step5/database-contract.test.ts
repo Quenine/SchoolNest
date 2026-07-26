@@ -37,6 +37,41 @@ describe('Step 5 database contract',()=>{
     expect(closure).toContain('revoke all on function public.save_attendance_register');
   });
 
+  it('breaks the attendance policy recursion with a tenant-safe definer helper',()=>{
+    for(const path of [closurePath,schemaPath]){
+      const sql=read(path).toLowerCase();
+      const helper=functionDefinition(sql,'can_parent_view_attendance_register');
+      expect(helper).toContain('target_school_id uuid');
+      expect(helper).toContain('target_register_id uuid');
+      expect(helper).toContain('returns boolean');
+      expect(helper).toContain('language sql');
+      expect(helper).toContain('stable');
+      expect(helper).toContain('security definer');
+      expect(helper).toContain('set search_path = public, pg_temp');
+      expect(helper).toContain('auth.uid() is not null');
+      expect(helper).toContain('ar.school_id = target_school_id');
+      expect(helper).toContain('ar.id = target_register_id');
+      expect(helper).toContain('ae.school_id = ar.school_id');
+      expect(helper).toContain('ae.attendance_register_id = ar.id');
+      expect(helper).toContain('sg.school_id = ae.school_id');
+      expect(helper).toContain('pg.school_id = sg.school_id');
+      expect(helper).toContain('pg.user_profile_id = auth.uid()');
+      expect(sql).toContain('revoke all on function public.can_parent_view_attendance_register(uuid,uuid) from public');
+      expect(sql).toContain('revoke all on function public.can_parent_view_attendance_register(uuid,uuid) from anon');
+      expect(sql).toContain('grant execute on function public.can_parent_view_attendance_register(uuid,uuid) to authenticated');
+      const registerParent=policy(sql,'attendance_register_parent_read');
+      expect(registerParent).toContain('using (public.can_parent_view_attendance_register(school_id, id))');
+      expect(registerParent).not.toContain('attendance_entries');
+      expect(policy(sql,'attendance_register_staff_select')).not.toContain('attendance_entries');
+      const entryStaff=policy(sql,'attendance_entries_staff_select');
+      expect(entryStaff).toContain('attendance_registers');
+      const entryParent=policy(sql,'attendance_entries_parent_read');
+      expect(entryParent).toContain('student_guardians');
+      expect(entryParent).toContain('parent_guardians');
+      expect(entryParent).toMatch(/user_profile_id\s*=\s*auth\.uid\(\)/);
+    }
+  });
+
   it('requires active assigned staff for non-admin announcement insert and update',()=>{
     for(const path of [closurePath,schemaPath]){
       const sql=read(path).toLowerCase();
@@ -140,4 +175,15 @@ function policy(sql:string,name:string){
 const candidates=[sql.indexOf('create policy ',start+14),sql.indexOf('drop policy ',start+14),sql.indexOf('\n-- ',start+14),sql.indexOf('\ncreate function ',start+14),sql.indexOf('\ncreate or replace function ',start+14),sql.indexOf('\ndrop function ',start+14)].filter(index=>index>start);
   const end=candidates.length?Math.min(...candidates):sql.length;
   return sql.slice(start,end);
+}
+function functionDefinition(sql:string,name:string){
+  const start=sql.indexOf(`create or replace function public.${name}`);
+  expect(start).toBeGreaterThanOrEqual(0);
+  const delimiterStart=sql.indexOf('as $',start);
+  expect(delimiterStart).toBeGreaterThan(start);
+  const delimiterEnd=sql.indexOf('$',delimiterStart+4);
+  const delimiter=sql.slice(delimiterStart+3,delimiterEnd+1);
+  const end=sql.indexOf(`${delimiter};`,delimiterEnd+1);
+  expect(end).toBeGreaterThan(delimiterEnd);
+  return sql.slice(start,end+delimiter.length+1);
 }

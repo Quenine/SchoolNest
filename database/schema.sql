@@ -1521,7 +1521,41 @@ drop policy if exists announcement_targets_visible_read on public.announcement_t
 create policy announcement_targets_visible_read on public.announcement_targets for select to authenticated using(public.can_view_announcement(announcement_id) or exists(select 1 from public.announcements a where a.id=announcement_id and a.created_by_user_profile_id=auth.uid()));
 
 drop policy if exists attendance_register_parent_read on public.attendance_registers;
-create policy attendance_register_parent_read on public.attendance_registers for select to authenticated using(exists(select 1 from public.attendance_entries e join public.student_guardians sg on sg.school_id=e.school_id and sg.student_id=e.student_id join public.parent_guardians pg on pg.school_id=sg.school_id and pg.id=sg.guardian_id where e.school_id=attendance_registers.school_id and e.attendance_register_id=attendance_registers.id and pg.user_profile_id=auth.uid()));
+create or replace function public.can_parent_view_attendance_register(
+  target_school_id uuid,
+  target_register_id uuid
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $schoolnest$
+  select auth.uid() is not null
+    and exists (
+      select 1
+      from public.attendance_registers ar
+      join public.attendance_entries ae
+        on ae.school_id = ar.school_id
+       and ae.attendance_register_id = ar.id
+      join public.student_guardians sg
+        on sg.school_id = ae.school_id
+       and sg.student_id = ae.student_id
+      join public.parent_guardians pg
+        on pg.school_id = sg.school_id
+       and pg.id = sg.guardian_id
+      where ar.school_id = target_school_id
+        and ar.id = target_register_id
+        and pg.user_profile_id = auth.uid()
+    );
+$schoolnest$;
+
+revoke all on function public.can_parent_view_attendance_register(uuid,uuid) from public;
+revoke all on function public.can_parent_view_attendance_register(uuid,uuid) from anon;
+grant execute on function public.can_parent_view_attendance_register(uuid,uuid) to authenticated;
+
+create policy attendance_register_parent_read on public.attendance_registers for select to authenticated
+  using (public.can_parent_view_attendance_register(school_id, id));
 
 create or replace function public.save_attendance_register(
  target_school_id uuid,target_session_id uuid,target_term_id uuid,target_class_id uuid,target_arm_id uuid,target_date date,entry_changes jsonb default '[]'::jsonb,submit_register boolean default false)
